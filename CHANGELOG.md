@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.3] - 2026-09-04
+
+### Changed
+- Richer gem metadata for the RubyGems page: expanded `description` (analyzer
+  list, safety model, gem-awareness, reporters), and added `bug_tracker_uri`,
+  `documentation_uri`, `wiki_uri` and `funding_uri` (GitHub Sponsors) link
+  metadata. No code change.
+
 ## [1.0.2] - 2026-09-04
 
 ### Changed
