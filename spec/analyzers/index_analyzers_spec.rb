@@ -38,6 +38,17 @@ RSpec.describe "index analyzers" do
       )
       expect(findings(described_class, schema).map(&:index)).to eq(["idx_a"])
     end
+
+    it "does not flag an index matching a non-leading column of a wider one" do
+      schema = fake_schema(
+        fake_table("events", columns: [{ name: "id" }],
+                             indexes: [
+                               { name: "idx_created_at", columns: %w[created_at] },
+                               { name: "idx_account_created", columns: %w[account_id created_at] }
+                             ])
+      )
+      expect(findings(described_class, schema)).to be_empty
+    end
   end
 
   describe SchemaReaper::Analyzers::MissingFkIndex do
