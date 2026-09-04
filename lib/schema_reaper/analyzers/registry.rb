@@ -13,7 +13,9 @@ module SchemaReaper
           @classes << klass unless @classes.include?(klass)
         end
 
-        def all = @classes
+        def all
+          @classes
+        end
       end
     end
   end

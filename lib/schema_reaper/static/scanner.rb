@@ -10,7 +10,7 @@ module SchemaReaper
     # safe, a false "dead" is not.
     class Scanner
       RUBY_GLOB  = "**/*.rb"
-      WORD_RE    = /[a-z_][a-z0-9_]*/i
+      WORD_RE    = /[a-z_][a-z0-9_]*/i.freeze
 
       # Node classes whose #name (or #unescaped) is a bare identifier we treat
       # as a possible column/table reference.

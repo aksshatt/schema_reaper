@@ -1,11 +1,22 @@
 # Changelog
 
-## [1.0.1] - 2026-09-04
+## [1.0.2] - 2026-09-04
 
 ### Changed
-- Lowered `required_ruby_version` to `>= 3.0.0` (was `>= 3.1.0`). The gem uses
-  no 3.1-only syntax; the one endless method with a bare-command body was
-  parenthesised so it parses on Ruby 3.0. CI matrix now covers 3.0–3.3.
+- Lowered `required_ruby_version` to `>= 2.7.0` (was `>= 3.1.0`).
+  - Rewrote all 40 endless method definitions (`def x = ...`, a Ruby 3.0
+    feature) as classic `def ... end`.
+  - Added explicit `require "set"` where `Set` / `to_set` are used (autoloaded
+    only on Ruby 3.2+).
+  - `rubocop` `TargetRubyVersion` set to 2.7; CI matrix now 2.7–3.3.
+  - Every `lib/`, `spec/` and `exe/` file verified to parse under Ruby 2.7.0;
+    dependency-free modules exercised on a real 2.7 runtime. Runtime deps
+    (`prism` >= 2.7, `thor` >= 2.6, `pg`) all support 2.7.
+- No behaviour change; 29 specs unchanged.
+
+## [1.0.1] - 2026-09-04
+
+Superseded by 1.0.2 before release. Lowered the floor to `>= 3.0.0` only.
 
 ## [1.0.0] - 2026-09-04
 

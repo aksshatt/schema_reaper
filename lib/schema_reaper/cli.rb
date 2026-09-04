@@ -6,7 +6,9 @@ require_relative "../schema_reaper"
 module SchemaReaper
   # Command-line entry point. See `exe/schema_reaper`.
   class CLI < Thor
-    def self.exit_on_failure? = true
+    def self.exit_on_failure?
+      true
+    end
 
     class_option :config, type: :string, default: ".schema_reaper.yml",
                           desc: "path to config file"
@@ -48,13 +50,19 @@ module SchemaReaper
     end
 
     desc "version", "Print version"
-    def version = say(SchemaReaper::VERSION)
+    def version
+      say(SchemaReaper::VERSION)
+    end
 
     private
 
-    def config = @config ||= Config.load(options[:config])
+    def config
+      @config ||= Config.load(options[:config])
+    end
 
-    def run = Runner.new(config: config).run
+    def run
+      Runner.new(config: config).run
+    end
 
     def enforce_baseline(findings)
       new_ones = Baseline.new(config.baseline_path).new_among(findings)

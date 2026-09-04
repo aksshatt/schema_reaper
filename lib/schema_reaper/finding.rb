@@ -19,7 +19,9 @@ module SchemaReaper
       [type, table, column, index].compact.join("/")
     end
 
-    def reclaimable_bytes = self[:reclaimable_bytes] || 0
+    def reclaimable_bytes
+      self[:reclaimable_bytes] || 0
+    end
 
     def to_h
       super.merge(id: id, reclaimable_bytes: reclaimable_bytes)

@@ -61,7 +61,12 @@ module SchemaReaper
       path
     end
 
-    def camel = "#{@table}_#{@column}".split("_").map(&:capitalize).join
-    def model = @table.split("_").map(&:capitalize).join.sub(/s$/, "")
+    def camel
+      "#{@table}_#{@column}".split("_").map(&:capitalize).join
+    end
+
+    def model
+      @table.split("_").map(&:capitalize).join.sub(/s$/, "")
+    end
   end
 end

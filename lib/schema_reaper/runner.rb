@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "set"
+
 module SchemaReaper
   # Ties introspection + scanning + runtime data + analyzers together.
   class Runner

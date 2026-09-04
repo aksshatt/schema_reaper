@@ -39,7 +39,9 @@ module SchemaReaper
         @findings.sort_by { |f| [-f.confidence, SEV_ORDER.fetch(f.severity, 9)] }
       end
 
-      def total_reclaimable = @findings.sum(&:reclaimable_bytes)
+      def total_reclaimable
+        @findings.sum(&:reclaimable_bytes)
+      end
     end
   end
 end

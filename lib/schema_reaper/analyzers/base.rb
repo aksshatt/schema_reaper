@@ -9,8 +9,13 @@ module SchemaReaper
     #   gem_columns  - Hash{table_name => Set<column_name>} reserved by gems
     #   config       - Config
     Context = Struct.new(:schema, :used_tokens, :runtime, :gem_columns, :config, keyword_init: true) do
-      def runtime = self[:runtime] || Runtime::Report.empty
-      def gem_columns = self[:gem_columns] || {}
+      def runtime
+        self[:runtime] || Runtime::Report.empty
+      end
+
+      def gem_columns
+        self[:gem_columns] || {}
+      end
     end
 
     # Shared plumbing for analyzers: schema access and token lookup helpers.
@@ -24,16 +29,29 @@ module SchemaReaper
       end
 
       # @return [Array<Finding>]
-      def call = raise(NotImplementedError)
+      def call
+        raise(NotImplementedError)
+      end
 
       private
 
       attr_reader :ctx
 
-      def schema = ctx.schema
-      def config = ctx.config
-      def runtime = ctx.runtime
-      def used?(token) = ctx.used_tokens.include?(token.to_s.downcase)
+      def schema
+        ctx.schema
+      end
+
+      def config
+        ctx.config
+      end
+
+      def runtime
+        ctx.runtime
+      end
+
+      def used?(token)
+        ctx.used_tokens.include?(token.to_s.downcase)
+      end
 
       def gem_reserved?(table, column)
         ctx.gem_columns.fetch(table, []).include?(column)

@@ -40,5 +40,7 @@ module SchemaReaper
     "sarif" => Reporters::Sarif
   }.freeze
 
-  def self.reporter(name) = REPORTERS.fetch(name, Reporters::Table)
+  def self.reporter(name)
+    REPORTERS.fetch(name, Reporters::Table)
+  end
 end

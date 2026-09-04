@@ -35,7 +35,9 @@ module SchemaReaper
         end
       end
 
-      def total = @findings.sum(&:reclaimable_bytes)
+      def total
+        @findings.sum(&:reclaimable_bytes)
+      end
     end
   end
 end

@@ -44,15 +44,41 @@ module SchemaReaper
       @data["database_url"] || ENV.fetch("DATABASE_URL", nil)
     end
 
-    def scan_paths      = @data["scan_paths"]
-    def view_globs      = @data["view_globs"]
-    def ignore_tables   = @data.dig("ignore", "tables").to_a
-    def min_age_days    = @data["min_age_days"]
-    def baseline_path   = @data["baseline"]
-    def runtime_log     = @data["runtime_log"]
-    def history_log     = @data["history_log"]
-    def gem_awareness?  = @data["gem_awareness"] != false
-    def require_paths   = @data["require"].to_a
+    def scan_paths
+      @data["scan_paths"]
+    end
+
+    def view_globs
+      @data["view_globs"]
+    end
+
+    def ignore_tables
+      @data.dig("ignore", "tables").to_a
+    end
+
+    def min_age_days
+      @data["min_age_days"]
+    end
+
+    def baseline_path
+      @data["baseline"]
+    end
+
+    def runtime_log
+      @data["runtime_log"]
+    end
+
+    def history_log
+      @data["history_log"]
+    end
+
+    def gem_awareness?
+      @data["gem_awareness"] != false
+    end
+
+    def require_paths
+      @data["require"].to_a
+    end
 
     def always_keep_columns
       @data["always_keep_columns"].to_a

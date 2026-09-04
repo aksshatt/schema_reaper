@@ -11,7 +11,9 @@ module SchemaReaper
   module Runtime
     # Aggregated view of a usage log, consumed by analyzers.
     Report = Struct.new(:accessed, :observed_days, keyword_init: true) do
-      def self.empty = new(accessed: Set.new, observed_days: 0)
+      def self.empty
+        new(accessed: Set.new, observed_days: 0)
+      end
 
       def self.load(path)
         return empty unless path && File.exist?(path)
@@ -36,9 +38,17 @@ module SchemaReaper
         ((Time.parse(last) - Time.parse(first)) / 86_400).ceil
       end
 
-      def empty? = accessed.empty?
-      def present? = !empty?
-      def read?(table, column) = accessed.include?("#{table}.#{column}")
+      def empty?
+        accessed.empty?
+      end
+
+      def present?
+        !empty?
+      end
+
+      def read?(table, column)
+        accessed.include?("#{table}.#{column}")
+      end
     end
 
     # Buffered writer for the usage log. Thread-safe append of JSON lines.

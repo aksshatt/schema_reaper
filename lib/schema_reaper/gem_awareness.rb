@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "set"
+
 module SchemaReaper
   # Columns and tables that popular gems own and reference indirectly (through
   # metaprogramming the static scanner cannot see). Detected gems get their

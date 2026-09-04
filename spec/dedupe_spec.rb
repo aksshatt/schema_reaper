@@ -17,7 +17,13 @@ RSpec.describe "Runner finding de-duplication" do
     )
   end
 
-  let(:introspector) { Struct.new(:s) { def call = s }.new(schema) }
+  let(:introspector) do
+    Struct.new(:s) do
+      def call
+        s
+      end
+    end.new(schema)
+  end
 
   it "collapses column findings into the table finding when the table is dead" do
     findings = SchemaReaper::Runner.new(

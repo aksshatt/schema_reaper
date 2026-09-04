@@ -61,7 +61,9 @@ module SchemaReaper
         end
       end
 
-      def camelize(str) = str.split("_").map(&:capitalize).join
+      def camelize(str)
+        str.split("_").map(&:capitalize).join
+      end
     end
   end
 end
