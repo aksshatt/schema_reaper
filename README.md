@@ -124,6 +124,21 @@ require:
 - Mountable dashboard engine, trend charts
 - MySQL adapter
 
+## Pro (for teams)
+
+The gem is free and complete for a single app. **schema_reaper Pro** adds the
+team-scale layer: MySQL adapter, multi-database fan-out, orphan-row and
+schema-drift analyzers, Slack/Jira/PR-comment reporters, real
+`pg_total_relation_size` + $ estimates, scheduled scans with alerts, and a
+mountable dashboard engine. See [PRO.md](PRO.md). Waitlist / early access:
+open an issue tagged `pro`.
+
+## Sponsor
+
+`schema_reaper` is MIT and maintained in the open. If it saved you disk, money,
+or a nasty migration, sponsor its development via the **Sponsor** button on the
+repo.
+
 ## Development
 
 ```

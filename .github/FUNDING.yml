@@ -1,0 +1,10 @@
+# Enables the "Sponsor" button on the repo.
+# github: requires enrolling the account at https://github.com/sponsors first.
+# The others work immediately once you create the account — uncomment what you set up.
+
+github: [aksshatt]
+# ko_fi: aksshatt
+# buy_me_a_coffee: aksshatt
+# polar: aksshatt
+# open_collective: schema-reaper
+# custom: ["https://schema-reaper.dev/sponsor"]
