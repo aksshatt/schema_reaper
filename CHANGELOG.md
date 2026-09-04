@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.4] - 2026-09-04
+
+### Changed
+- Rewrote `description` as a single tight paragraph. RubyGems collapses
+  description whitespace, so the previous multi-line bulleted text rendered as
+  an unreadable blob on the gem page. Full analyzer list and usage stay in the
+  README. Link metadata from 1.0.3 unchanged.
+
 ## [1.0.3] - 2026-09-04
 
 ### Changed
