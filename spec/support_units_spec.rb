@@ -13,6 +13,28 @@ RSpec.describe "supporting units" do
     )
   end
 
+  describe SchemaReaper::DatabaseSchema do
+    def schema_with(total, index_count)
+      indexes = Array.new(index_count) { |i| { name: "idx_#{i}", columns: ["c#{i}"] } }
+      fake_schema(
+        fake_table("t", columns: [{ name: "id" }], indexes: indexes),
+        index_scan_total: total
+      )
+    end
+
+    it "assumes stats are usable when the introspector reports no total" do
+      expect(schema_with(nil, 10).query_history?).to be(true)
+    end
+
+    it "treats fewer scans than indexes as no query history" do
+      expect(schema_with(2, 10).query_history?).to be(false)
+    end
+
+    it "treats at least one scan per index as query history" do
+      expect(schema_with(10, 10).query_history?).to be(true)
+    end
+  end
+
   describe SchemaReaper::Reporters::Bytes do
     it "renders human sizes" do
       expect(described_class.human(512)).to eq("512.0 B")

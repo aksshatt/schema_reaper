@@ -20,10 +20,21 @@ module SchemaReaper
       end
 
       def call
-        DatabaseSchema.new(tables: table_names.map { |n| build_table(n) })
+        DatabaseSchema.new(
+          tables: table_names.map { |n| build_table(n) },
+          index_scan_total: index_scan_total
+        )
       end
 
       private
+
+      # Cluster-wide cumulative index scans. Lets the unused-index analyzer tell
+      # "this index is never used" apart from "this database has no query
+      # history", which look identical at the level of a single idx_scan = 0.
+      def index_scan_total
+        exec("SELECT COALESCE(sum(idx_scan), 0) AS total FROM pg_stat_user_indexes")
+          .first&.fetch("total")&.to_i
+      end
 
       def table_names
         exec(<<~SQL).map { |r| r["tablename"] }

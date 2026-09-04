@@ -25,6 +25,30 @@ RSpec.describe "index analyzers" do
       )
       expect(findings(described_class, schema)).to be_empty
     end
+
+    it "reports nothing when the database has no query history" do
+      schema = fake_schema(
+        fake_table("orders", row_count: 10, columns: [{ name: "id" }],
+                             indexes: [
+                               { name: "idx_a", columns: %w[a], scans: 0 },
+                               { name: "idx_b", columns: %w[b], scans: 0 }
+                             ]),
+        index_scan_total: 1
+      )
+      expect(findings(described_class, schema)).to be_empty
+    end
+
+    it "still reports once the database has served queries" do
+      schema = fake_schema(
+        fake_table("orders", row_count: 10, columns: [{ name: "id" }],
+                             indexes: [
+                               { name: "idx_cold", columns: %w[a], scans: 0 },
+                               { name: "idx_hot", columns: %w[b], scans: 9000 }
+                             ]),
+        index_scan_total: 9000
+      )
+      expect(findings(described_class, schema).map(&:index)).to eq(["idx_cold"])
+    end
   end
 
   describe SchemaReaper::Analyzers::DuplicateIndex do

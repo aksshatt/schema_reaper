@@ -8,9 +8,10 @@ RSpec.configure do |config|
   config.expect_with(:rspec) { |c| c.syntax = :expect }
 end
 
-# Builds a DatabaseSchema without touching a real database.
-def fake_schema(*tables)
-  SchemaReaper::DatabaseSchema.new(tables: tables)
+# Builds a DatabaseSchema without touching a real database. index_scan_total
+# defaults to nil, meaning "stats unknown" -- analyzers treat that as usable.
+def fake_schema(*tables, index_scan_total: nil)
+  SchemaReaper::DatabaseSchema.new(tables: tables, index_scan_total: index_scan_total)
 end
 
 def fake_column(attrs)
