@@ -113,12 +113,17 @@ module SchemaReaper
         end
       end
 
+      # Every primary-key column, in key order. A composite key needs the whole
+      # list: returning one arbitrary column leaves the rest looking like
+      # ordinary columns to the analyzers.
       def primary_key_for(table)
-        exec(<<~SQL, [table]).map { |r| r["attname"] }.first
+        exec(<<~SQL, [table]).map { |r| r["attname"] }
           SELECT a.attname
           FROM pg_index i
-          JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
+          JOIN LATERAL unnest(i.indkey::int2[]) WITH ORDINALITY AS k(attnum, ord) ON TRUE
+          JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = k.attnum
           WHERE i.indrelid = $1::regclass AND i.indisprimary
+          ORDER BY k.ord
         SQL
       rescue PG::Error
         nil

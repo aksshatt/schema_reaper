@@ -40,6 +40,17 @@ module SchemaReaper
     def index_on(cols)
       indexes.find { |i| i.columns == Array(cols) }
     end
+
+    # primary_key may be a single name or, for a composite key, the ordered
+    # list. Array() accepts both so introspectors that still return one name
+    # keep working.
+    def primary_key_columns
+      Array(primary_key)
+    end
+
+    def primary_key?(column_name)
+      primary_key_columns.include?(column_name)
+    end
   end
 
   DatabaseSchema = Struct.new(:tables, :index_scan_total, keyword_init: true) do

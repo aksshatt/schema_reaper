@@ -41,7 +41,7 @@ module SchemaReaper
       def keep?(table, col)
         config.always_keep_columns.include?(col.name) ||
           config.ignored_column?(col.name) ||
-          col.name == table.primary_key ||
+          table.primary_key?(col.name) ||
           table.foreign_keys.include?(col.name) ||
           col.name.end_with?("_id", "_type") ||
           gem_reserved?(table.name, col.name)

@@ -28,11 +28,21 @@ RSpec.describe SchemaReaper::Introspect::Postgres do
         );
         CREATE INDEX idx_created_account
           ON schema_reaper_idx_order (created_at, account_id);
+
+        DROP TABLE IF EXISTS schema_reaper_composite_pk;
+        -- Key order (group_id, user_id) is the reverse of column order, so a
+        -- query that does not sort by the index key reports them backwards.
+        CREATE TABLE schema_reaper_composite_pk (
+          user_id bigint NOT NULL,
+          group_id bigint NOT NULL,
+          PRIMARY KEY (group_id, user_id)
+        );
       SQL
     end
 
     after(:all) do
       @conn&.exec("DROP TABLE IF EXISTS schema_reaper_idx_order")
+      @conn&.exec("DROP TABLE IF EXISTS schema_reaper_composite_pk")
       @conn&.close
     end
 
@@ -55,6 +65,14 @@ RSpec.describe SchemaReaper::Introspect::Postgres do
       )
 
       expect(composite.covers?(account_only)).to be(false)
+    end
+
+    it "returns every primary-key column in key order" do
+      table = described_class.new(db_url).call.tables
+                             .find { |t| t.name == "schema_reaper_composite_pk" }
+
+      expect(table.primary_key_columns).to eq(%w[group_id user_id])
+      expect(table.primary_key?("user_id")).to be(true)
     end
   end
 end

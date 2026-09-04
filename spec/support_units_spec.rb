@@ -35,6 +35,28 @@ RSpec.describe "supporting units" do
     end
   end
 
+  describe "Table#primary_key?" do
+    it "accepts a single primary key name" do
+      table = fake_table("users", primary_key: "id", columns: [{ name: "id" }])
+      expect(table.primary_key?("id")).to be(true)
+      expect(table.primary_key?("email")).to be(false)
+    end
+
+    it "accepts every column of a composite primary key" do
+      table = fake_table("memberships", primary_key: %w[user_id group_id],
+                                        columns: [{ name: "user_id" }, { name: "group_id" }])
+      expect(table.primary_key_columns).to eq(%w[user_id group_id])
+      expect(table.primary_key?("user_id")).to be(true)
+      expect(table.primary_key?("group_id")).to be(true)
+    end
+
+    it "treats a missing primary key as no columns" do
+      table = fake_table("logs", primary_key: nil, columns: [{ name: "id" }])
+      expect(table.primary_key_columns).to eq([])
+      expect(table.primary_key?("id")).to be(false)
+    end
+  end
+
   describe SchemaReaper::Reporters::Bytes do
     it "renders human sizes" do
       expect(described_class.human(512)).to eq("512.0 B")
