@@ -12,33 +12,39 @@ module SchemaReaper
                           desc: "path to config file"
 
     desc "scan", "Scan schema + code and report dead weight"
-    option :format, type: :string, default: "table", enum: %w[table json]
+    option :format, type: :string, default: "table",
+                    enum: %w[table json markdown sarif]
     option :ci, type: :boolean, default: false,
                 desc: "exit non-zero on findings not in the baseline"
+    option :record, type: :boolean, default: false,
+                    desc: "append this run to the history log"
+    option :min_confidence, type: :numeric, default: 0.0
     def scan
-      findings = build_runner.run
-      reporter_for(options[:format]).new(findings).render
+      findings = run.select { |f| f.confidence >= options[:min_confidence] }
+      SchemaReaper.reporter(options[:format]).new(findings).render
 
-      return unless options[:ci]
-
-      new_ones = Baseline.new(config.baseline_path).new_among(findings)
-      return unless new_ones.any?
-
-      warn "schema_reaper: #{new_ones.size} new finding(s) since baseline"
-      exit 1
+      History.new(config.history_log).record(findings) if options[:record]
+      enforce_baseline(findings) if options[:ci]
     end
 
     desc "baseline", "Write current findings to the baseline file"
     def baseline
-      findings = build_runner.run
+      findings = run
       Baseline.new(config.baseline_path).write(findings)
       say "wrote #{findings.size} finding(s) to #{config.baseline_path}"
     end
 
+    desc "trend", "Append a snapshot and print progress over time"
+    def trend
+      History.new(config.history_log).record(run)
+      require "pp"
+      pp History.new(config.history_log).trend
+    end
+
     desc "generate-migration TABLE COLUMN", "Emit a staged removal migration pair"
     def generate_migration(table, column)
-      paths = MigrationGenerator.new(table: table, column: column).call
-      paths.each { |p| say "created #{p}" }
+      MigrationGenerator.new(table: table, column: column).call
+                        .each { |p| say "created #{p}" }
     end
 
     desc "version", "Print version"
@@ -48,10 +54,15 @@ module SchemaReaper
 
     def config = @config ||= Config.load(options[:config])
 
-    def build_runner = Runner.new(config: config)
+    def run = Runner.new(config: config).run
 
-    def reporter_for(fmt)
-      fmt == "json" ? Reporters::Json : Reporters::Table
+    def enforce_baseline(findings)
+      new_ones = Baseline.new(config.baseline_path).new_among(findings)
+      return if new_ones.empty?
+
+      warn "schema_reaper: #{new_ones.size} new finding(s) since baseline"
+      new_ones.each { |f| warn "  - #{f.id}" }
+      exit 1
     end
   end
 end

@@ -14,11 +14,15 @@ module SchemaReaper
       ],
       "ignore" => {
         "tables" => %w[schema_migrations ar_internal_metadata],
-        "columns" => []               # strings or /regex/ literals
+        "columns" => []               # strings, or "/regex/" for a pattern
       },
       "always_keep_columns" => %w[id created_at updated_at type],
-      "min_age_days" => 14,           # columns newer than this are skipped
-      "baseline" => ".schema_reaper/baseline.json"
+      "gem_awareness" => true,        # auto-whitelist columns owned by known gems
+      "min_age_days" => 14,
+      "runtime_log" => ".schema_reaper/runtime.jsonl",
+      "history_log" => ".schema_reaper/history.jsonl",
+      "baseline" => ".schema_reaper/baseline.json",
+      "require" => [] # extra files to load (custom analyzers)
     }.freeze
 
     def self.load(path = ".schema_reaper.yml")
@@ -45,6 +49,10 @@ module SchemaReaper
     def ignore_tables   = @data.dig("ignore", "tables").to_a
     def min_age_days    = @data["min_age_days"]
     def baseline_path   = @data["baseline"]
+    def runtime_log     = @data["runtime_log"]
+    def history_log     = @data["history_log"]
+    def gem_awareness?  = @data["gem_awareness"] != false
+    def require_paths   = @data["require"].to_a
 
     def always_keep_columns
       @data["always_keep_columns"].to_a

@@ -2,12 +2,14 @@
 
 module SchemaReaper
   module Analyzers
-    # Flags columns present in the schema but never referenced anywhere in the
-    # scanned codebase. Static signal only in v0.1 -> capped confidence.
+    # Flags columns present in the schema but never referenced in code. When a
+    # runtime usage log is supplied, its signal is fused in: a column unseen in
+    # BOTH code and >= 14 observed days of runtime reaches high confidence.
     class DeadColumn < Base
       Registry.register(self)
 
-      MAX_STATIC_CONFIDENCE = 0.6
+      STATIC_ONLY_CAP  = 0.6
+      RUNTIME_MIN_DAYS = 14
 
       def call
         schema.tables.reject { |t| config.ignore_tables.include?(t.name) }
@@ -20,17 +22,18 @@ module SchemaReaper
         table.columns.filter_map do |col|
           next if keep?(table, col)
           next if used?(col.name)
+          next if runtime.read?(table.name, col.name)
 
-          Finding.new(
+          finding(
             type: :dead_column,
             table: table.name,
             column: col.name,
-            severity: severity_for(col),
-            confidence: confidence_for(table, col),
+            severity: col.null ? :medium : :high,
+            confidence: confidence_for(col),
             bytes_per_row: col.bytes,
             evidence: evidence_for(table, col),
-            suggested_fix: "Stage removal: add `#{table.name}` to ignored_columns, " \
-                           "deploy, then `remove_column :#{table.name}, :#{col.name}`."
+            suggested_fix: "Stage removal: `self.ignored_columns += %w[#{col.name}]` on the " \
+                           "model, deploy, then `remove_column :#{table.name}, :#{col.name}`."
           )
         end
       end
@@ -40,24 +43,29 @@ module SchemaReaper
           config.ignored_column?(col.name) ||
           col.name == table.primary_key ||
           table.foreign_keys.include?(col.name) ||
-          col.name.end_with?("_id", "_type") # associations resolved indirectly
+          col.name.end_with?("_id", "_type") ||
+          gem_reserved?(table.name, col.name)
       end
 
-      def severity_for(col)
-        col.null == false && col.default.nil? ? :high : :medium
+      def confidence_for(col)
+        if runtime.present? && runtime.observed_days >= RUNTIME_MIN_DAYS
+          col.null ? 0.9 : 0.8
+        else
+          base = col.null ? 0.5 : 0.4
+          [base, STATIC_ONLY_CAP].min
+        end
       end
 
-      def confidence_for(_table, col)
-        base = 0.4
-        base += 0.1 if col.null # nullable & unused -> more likely truly dead
-        [base, MAX_STATIC_CONFIDENCE].min
-      end
-
-      def evidence_for(_table, col)
-        [
-          "no identifier, symbol or string literal `#{col.name}` found in scan paths",
-          ("column is nullable" if col.null)
-        ].compact
+      def evidence_for(table, col)
+        ev = ["no `#{col.name}` reference found in scanned code"]
+        ev << "column is nullable" if col.null
+        ev << if runtime.present?
+                "not read in #{runtime.observed_days} observed day(s) of runtime data"
+              else
+                "static signal only — confidence capped at #{STATIC_ONLY_CAP}"
+              end
+        ev << "table holds ~#{table.row_count} row(s)" if table.row_count
+        ev
       end
     end
   end

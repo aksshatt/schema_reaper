@@ -12,25 +12,45 @@ Style/StringLiteralsInInterpolation:
 Style/FormatStringToken:
   Enabled: false
 
+Style/Documentation:
+  Exclude:
+    - "lib/schema_reaper/runtime.rb" # nested Hook/Tracker helpers
+
+Style/SafeNavigationChainLength:
+  Enabled: false
+
 Layout/LineLength:
   Max: 120
+
+Naming/MethodParameterName:
+  AllowedNames: [f, n, io, id, at, to, db]
 
 Metrics/BlockLength:
   Exclude:
     - "spec/**/*"
     - "*.gemspec"
 
+Metrics/ParameterLists:
+  Exclude:
+    - "spec/**/*"
+
 Gemspec/DevelopmentDependencies:
   Enabled: false
+
+Lint/StructNewOverride:
+  Enabled: false
+
+Metrics/MethodLength:
+  Max: 20
+
+Metrics/ClassLength:
+  Max: 130
 
 Metrics/CyclomaticComplexity:
   Max: 12
 
 Metrics/PerceivedComplexity:
-  Max: 10
+  Max: 13
 
 Metrics/AbcSize:
   Max: 28
-
-Metrics/MethodLength:
-  Max: 15

@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "bytes"
+
 module SchemaReaper
   module Reporters
     # Human-readable terminal output, sorted by confidence then severity.
@@ -17,26 +19,27 @@ module SchemaReaper
           return
         end
 
-        sorted.each do |f|
-          @io.puts format("[%-6s %s%%] %-24s %-24s %s",
-                          f.severity, (f.confidence * 100).round,
-                          f.table, f.column.to_s, f.type)
-          f.evidence.each { |e| @io.puts "        - #{e}" }
-          @io.puts "        fix: #{f.suggested_fix}"
-        end
+        sorted.each { |f| render_finding(f) }
         @io.puts
-        @io.puts "#{@findings.size} finding(s). ~#{total_bytes} bytes/row reclaimable."
+        @io.puts "#{@findings.size} finding(s). " \
+                 "~#{Bytes.human(total_reclaimable)} reclaimable."
       end
 
       private
+
+      def render_finding(f)
+        target = [f.table, f.column, f.index].compact.join(".")
+        @io.puts format("[%-6s %3d%%] %-14s %s",
+                        f.severity, (f.confidence * 100).round, f.type, target)
+        f.evidence.each { |e| @io.puts "        - #{e}" }
+        @io.puts "        fix: #{f.suggested_fix}"
+      end
 
       def sorted
         @findings.sort_by { |f| [-f.confidence, SEV_ORDER.fetch(f.severity, 9)] }
       end
 
-      def total_bytes
-        @findings.sum { |f| f.bytes_per_row.to_i }
-      end
+      def total_reclaimable = @findings.sum(&:reclaimable_bytes)
     end
   end
 end

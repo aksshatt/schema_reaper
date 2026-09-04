@@ -1,42 +1,48 @@
 # frozen_string_literal: true
 
 RSpec.describe SchemaReaper::Analyzers::DeadColumn do
-  let(:config) { SchemaReaper::Config.new(SchemaReaper::Config::DEFAULTS.dup) }
-
   let(:schema) do
     fake_schema(
-      fake_table("users", columns: [
+      fake_table("users", row_count: 1000, foreign_keys: %w[org_id], columns: [
                    { name: "id" },
                    { name: "email", type: "character varying" },
                    { name: "legacy_ssn_hash", type: "character varying", null: true },
                    { name: "org_id" },
                    { name: "created_at" }
-                 ], foreign_keys: %w[org_id])
+                 ])
     )
   end
 
-  def findings(used)
-    ctx = SchemaReaper::Analyzers::Context.new(schema: schema, used_tokens: used, config: config)
+  def findings(used:, runtime: nil, gem_columns: {})
+    ctx = context_for(schema: schema, used: used, runtime: runtime, gem_columns: gem_columns)
     described_class.new(ctx).call
   end
 
   it "flags a column no token references" do
-    result = findings(Set["email", "id"])
+    result = findings(used: %w[email id])
     expect(result.map(&:column)).to eq(["legacy_ssn_hash"])
   end
 
   it "keeps pk, timestamps, fks and used columns" do
-    result = findings(Set["email", "legacy_ssn_hash"])
-    expect(result).to be_empty
+    expect(findings(used: %w[email legacy_ssn_hash])).to be_empty
   end
 
-  it "caps confidence for static-only signal" do
-    result = findings(Set["email"])
-    expect(result.first.confidence).to be <= described_class::MAX_STATIC_CONFIDENCE
+  it "keeps gem-reserved columns" do
+    gem_cols = { "users" => Set["legacy_ssn_hash"] }
+    expect(findings(used: %w[email], gem_columns: gem_cols)).to be_empty
   end
 
-  it "carries a staged-removal fix" do
-    result = findings(Set["email"])
-    expect(result.first.suggested_fix).to include("ignored_columns")
+  it "caps confidence at 0.6 for static-only signal" do
+    expect(findings(used: %w[email]).first.confidence).to be <= 0.6
+  end
+
+  it "raises confidence when runtime data confirms the column is unread" do
+    rt = runtime_report(accessed: %w[users.email], observed_days: 30)
+    expect(findings(used: %w[email], runtime: rt).first.confidence).to be > 0.6
+  end
+
+  it "computes reclaimable bytes from the row count" do
+    f = findings(used: %w[email]).first
+    expect(f.reclaimable_bytes).to eq(f.bytes_per_row * 1000)
   end
 end

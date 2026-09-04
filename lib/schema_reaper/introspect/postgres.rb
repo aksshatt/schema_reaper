@@ -2,8 +2,8 @@
 
 module SchemaReaper
   module Introspect
-    # Reads live schema from a PostgreSQL database using the `pg` gem directly,
-    # so the host app does not need to boot Rails.
+    # Reads live schema + planner statistics from PostgreSQL using the `pg` gem
+    # directly, so the host app does not need to boot Rails.
     class Postgres
       AVG_TYPE_BYTES = {
         "boolean" => 1, "smallint" => 2, "integer" => 4, "bigint" => 8,
@@ -37,39 +37,64 @@ module SchemaReaper
           columns: columns_for(name),
           indexes: indexes_for(name),
           primary_key: primary_key_for(name),
-          foreign_keys: foreign_keys_for(name)
+          foreign_keys: foreign_keys_for(name),
+          row_count: row_count_for(name)
         )
       end
 
       def columns_for(table)
+        stats = column_stats_for(table)
         exec(<<~SQL, [table]).map do |r|
           SELECT column_name, data_type, is_nullable, column_default
           FROM information_schema.columns
           WHERE table_schema = 'public' AND table_name = $1
           ORDER BY ordinal_position
         SQL
+          s = stats[r["column_name"]] || {}
           Column.new(
             name: r["column_name"],
             sql_type: r["data_type"],
             null: r["is_nullable"] == "YES",
             default: r["column_default"],
-            bytes: AVG_TYPE_BYTES.fetch(r["data_type"], 16)
+            bytes: AVG_TYPE_BYTES.fetch(r["data_type"], 16),
+            null_fraction: s[:null_frac],
+            distinct_values: s[:n_distinct]
           )
+        end
+      end
+
+      # pg_stats.n_distinct: >= 0 is an absolute count, < 0 is a ratio of rows.
+      def column_stats_for(table)
+        exec(<<~SQL, [table]).each_with_object({}) do |r, h|
+          SELECT attname, null_frac, n_distinct
+          FROM pg_stats WHERE schemaname = 'public' AND tablename = $1
+        SQL
+          nd = r["n_distinct"].to_f
+          h[r["attname"]] = {
+            null_frac: r["null_frac"].to_f,
+            n_distinct: nd >= 0 ? nd.round : nil
+          }
         end
       end
 
       def indexes_for(table)
         exec(<<~SQL, [table]).map do |r|
-          SELECT i.relname AS name, ix.indisunique AS unique,
+          SELECT i.relname AS name, ix.indisunique AS "unique", ix.indisprimary AS "primary",
+                 s.idx_scan AS scans,
                  array_to_string(array_agg(a.attname ORDER BY a.attnum), ',') AS cols
           FROM pg_class t
           JOIN pg_index ix ON t.oid = ix.indrelid
           JOIN pg_class i ON i.oid = ix.indexrelid
           JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(ix.indkey)
+          LEFT JOIN pg_stat_user_indexes s ON s.indexrelid = i.oid
           WHERE t.relname = $1
-          GROUP BY i.relname, ix.indisunique
+          GROUP BY i.relname, ix.indisunique, ix.indisprimary, s.idx_scan
         SQL
-          Index.new(name: r["name"], columns: r["cols"].split(","), unique: r["unique"] == "t")
+          Index.new(
+            name: r["name"], columns: r["cols"].split(","),
+            unique: r["unique"] == "t", primary: r["primary"] == "t",
+            scans: r["scans"]&.to_i
+          )
         end
       end
 
@@ -92,6 +117,12 @@ module SchemaReaper
             ON tc.constraint_name = kcu.constraint_name
           WHERE tc.constraint_type = 'FOREIGN KEY'
             AND tc.table_schema = 'public' AND tc.table_name = $1
+        SQL
+      end
+
+      def row_count_for(table)
+        exec(<<~SQL, [table]).first&.fetch("reltuples")&.to_f&.round
+          SELECT reltuples FROM pg_class WHERE relname = $1
         SQL
       end
 

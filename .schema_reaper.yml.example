@@ -27,5 +27,17 @@ always_keep_columns:
   - updated_at
   - type
 
-min_age_days: 14
+# Auto-whitelist columns owned by gems in your bundle (devise, paper_trail,
+# activestorage, actiontext, friendly_id, audited, pg_search, ahoy_matey, ...).
+gem_awareness: true
+
+# Runtime usage log written by the tracker (see README > Runtime signal).
+runtime_log: .schema_reaper/runtime.jsonl
+
+# Append-only snapshot log for `schema_reaper trend`.
+history_log: .schema_reaper/history.jsonl
+
 baseline: .schema_reaper/baseline.json
+
+# Extra Ruby files to load before analysis -- register custom analyzers here.
+require: []

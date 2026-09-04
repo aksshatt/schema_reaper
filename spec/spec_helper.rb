@@ -13,15 +13,51 @@ def fake_schema(*tables)
   SchemaReaper::DatabaseSchema.new(tables: tables)
 end
 
-def fake_table(name, columns:, primary_key: "id", foreign_keys: [], indexes: [])
-  cols = columns.map do |c|
-    SchemaReaper::Column.new(
-      name: c[:name], sql_type: c.fetch(:type, "integer"),
-      null: c.fetch(:null, true), default: c[:default], bytes: c.fetch(:bytes, 4)
-    )
-  end
+def fake_column(attrs)
+  SchemaReaper::Column.new(
+    name: attrs.fetch(:name),
+    sql_type: attrs.fetch(:type, "integer"),
+    null: attrs.fetch(:null, true),
+    default: attrs[:default],
+    bytes: attrs.fetch(:bytes, 4),
+    null_fraction: attrs[:null_fraction],
+    distinct_values: attrs[:distinct_values]
+  )
+end
+
+def fake_index(attrs)
+  SchemaReaper::Index.new(
+    name: attrs.fetch(:name),
+    columns: Array(attrs.fetch(:columns)),
+    unique: attrs.fetch(:unique, false),
+    primary: attrs.fetch(:primary, false),
+    scans: attrs[:scans]
+  )
+end
+
+def fake_table(name, columns:, primary_key: "id", foreign_keys: [], indexes: [], row_count: nil)
   SchemaReaper::Table.new(
-    name: name, columns: cols, indexes: indexes,
-    primary_key: primary_key, foreign_keys: foreign_keys
+    name: name,
+    columns: columns.map { |c| fake_column(c) },
+    indexes: indexes.map { |i| fake_index(i) },
+    primary_key: primary_key,
+    foreign_keys: foreign_keys,
+    row_count: row_count
+  )
+end
+
+def runtime_report(accessed: [], observed_days: 0)
+  SchemaReaper::Runtime::Report.new(
+    accessed: accessed.to_set, observed_days: observed_days
+  )
+end
+
+def context_for(schema:, used: [], runtime: nil, gem_columns: {}, config: nil)
+  SchemaReaper::Analyzers::Context.new(
+    schema: schema,
+    used_tokens: used.to_set,
+    runtime: runtime,
+    gem_columns: gem_columns,
+    config: config || SchemaReaper::Config.new(SchemaReaper::Config::DEFAULTS.dup)
   )
 end
