@@ -1,0 +1,31 @@
+# Copy to .schema_reaper.yml and edit. Every key is optional.
+---
+# database_url: postgres://localhost/myapp_development   # else ENV["DATABASE_URL"]
+
+scan_paths:
+  - app
+  - lib
+  - config
+
+view_globs:
+  - app/**/*.erb
+  - app/**/*.haml
+  - app/**/*.slim
+  - app/**/*.jbuilder
+
+ignore:
+  tables:
+    - schema_migrations
+    - ar_internal_metadata
+  columns:
+    - "/_cache$/"        # wrap in slashes for a regex
+    - legacy_notes
+
+always_keep_columns:
+  - id
+  - created_at
+  - updated_at
+  - type
+
+min_age_days: 14
+baseline: .schema_reaper/baseline.json
