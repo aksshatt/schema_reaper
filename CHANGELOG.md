@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1] - 2026-09-04
+
+### Changed
+- Lowered `required_ruby_version` to `>= 3.0.0` (was `>= 3.1.0`). The gem uses
+  no 3.1-only syntax; the one endless method with a bare-command body was
+  parenthesised so it parses on Ruby 3.0. CI matrix now covers 3.0–3.3.
+
 ## [1.0.0] - 2026-09-04
 
 First stable release.

@@ -24,7 +24,7 @@ module SchemaReaper
       end
 
       # @return [Array<Finding>]
-      def call = raise NotImplementedError
+      def call = raise(NotImplementedError)
 
       private
 
