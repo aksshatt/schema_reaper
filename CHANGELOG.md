@@ -1,5 +1,34 @@
 # Changelog
 
+## [1.0.7] - 2026-09-04
+
+Correctness fixes to introspection and analyzers, all contributed by @mitkush
+and verified against a live PostgreSQL database.
+
+### Fixed
+- **Index-key order** (#1). Index columns are now read in real key order via
+  `unnest(indkey) WITH ORDINALITY` instead of `attnum` order, so
+  `duplicate_index`'s prefix comparison is correct for composite indexes.
+- **`unused_index` false positives on quiet databases** (#2). If the whole
+  cluster has fewer recorded index scans than it has indexes, there is no
+  query history to judge by -- the analyzer now skips with an explanation
+  instead of flagging every index as unused.
+- **Polymorphic associations in `missing_fk_index`** (#3). A `*_id` column
+  paired with a `*_type` column is matched against the composite
+  `(type, id)` index Rails actually uses; a bare `*_id` index is no longer
+  demanded, and when the pair is unindexed the suggested fix is the composite
+  `add_index :t, %i[thing_type thing_id]`.
+- **`dead_table` plurals and route helpers** (#5). Tables whose model name
+  needs `-y -> -ies` (`categories` -> `Category`) and names referenced only
+  through route helpers are recognised as used.
+- **Composite primary keys** (#6). Introspection returns every primary-key
+  column in key order; `Table#primary_key?` / `#primary_key_columns` let
+  analyzers treat each part of a composite key as a key column.
+
+### Changed
+- `DatabaseSchema` carries `index_scan_total`; `Table#primary_key` may now be
+  an array. Test helpers updated accordingly.
+
 ## [1.0.6] - 2026-09-04
 
 ### Changed
