@@ -5,8 +5,8 @@ require_relative "lib/schema_reaper/version"
 Gem::Specification.new do |spec|
   spec.name = "schema_reaper"
   spec.version = SchemaReaper::VERSION
-  spec.authors = ["Rahul Dwivedi"]
-  spec.email = ["rrahuldwivedi01@gmail.com"]
+  spec.authors = ["aksshatt"]
+  spec.email = ["akshatpegwar5@gmail.com"]
 
   spec.summary = "Find dead columns, unused indexes and schema dead-weight in Rails/ActiveRecord apps."
   spec.description = <<~DESC
@@ -19,7 +19,7 @@ Gem::Specification.new do |spec|
     Ships table/json/markdown/sarif reporters, a CI baseline gate and a trend
     log.
   DESC
-  spec.homepage = "https://github.com/akkshatt-shriffle/schema_reaper"
+  spec.homepage = "https://github.com/aksshatt/schema_reaper"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.1.0"
 
