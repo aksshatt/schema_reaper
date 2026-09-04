@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.0.5] - 2026-09-04
+
+Fixes found by running the gem against a live PostgreSQL database.
+
+### Fixed
+- **Duplicate findings for one object.** When several analyzers flagged the
+  same physical column (e.g. `dead_column` + `always_null_column`) or index
+  (`unused_index` + `duplicate_index`), each was reported separately *and* its
+  reclaimable bytes were counted more than once, inflating the run total.
+  Findings are now collapsed to the highest-confidence one per target; the
+  others are noted as `also flagged by: ...` in its evidence.
+- **`generate-migration` output.** The generated STEP 1 migration contained a
+  fragile multi-line string (heredoc line-continuation) that rendered with a
+  stray gap. It is now a single clean string. Both files are verified valid
+  Ruby.
+- **Migration schema version.** Generated migrations now inherit the host
+  app's Rails minor version (`ActiveRecord::Migration[X.Y]`) when ActiveRecord
+  is loaded, instead of a hard-coded `7.1`.
+
+### Added
+- Specs covering target collapsing and migration generation, exercised end to
+  end through `Runner` with an injected schema.
+
 ## [1.0.4] - 2026-09-04
 
 ### Changed

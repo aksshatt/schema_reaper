@@ -19,6 +19,19 @@ module SchemaReaper
       [type, table, column, index].compact.join("/")
     end
 
+    # The physical object this finding is about, ignoring which analyzer raised
+    # it. Two findings with the same target_key are the same underlying problem
+    # (e.g. dead_column + always_null_column on one column) -- keep the strongest.
+    def target_key
+      if index
+        ["index", table, index]
+      elsif column
+        ["column", table, column]
+      else
+        ["table", table]
+      end
+    end
+
     def reclaimable_bytes
       self[:reclaimable_bytes] || 0
     end

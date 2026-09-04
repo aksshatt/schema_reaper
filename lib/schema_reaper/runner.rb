@@ -5,6 +5,8 @@ require "set"
 module SchemaReaper
   # Ties introspection + scanning + runtime data + analyzers together.
   class Runner
+    SEVERITY_RANK = { high: 0, medium: 1, low: 2 }.freeze
+
     def initialize(config: Config.load, root: Dir.pwd, introspector: nil, runtime: nil)
       @config = config
       @root = root
@@ -29,11 +31,28 @@ module SchemaReaper
 
     private
 
+    def dedupe(findings)
+      collapse_targets(drop_findings_on_dead_tables(findings))
+    end
+
     # When a whole table is dead, its per-column and per-index findings are
     # noise -- keep only the table-level finding for that table.
-    def dedupe(findings)
+    def drop_findings_on_dead_tables(findings)
       dead_tables = findings.select { |f| f.type == :dead_table }.to_set(&:table)
       findings.reject { |f| f.type != :dead_table && dead_tables.include?(f.table) }
+    end
+
+    # Several analyzers can flag the same physical column or index (e.g.
+    # dead_column + always_null_column). Keep the highest-confidence finding per
+    # target so it is reported -- and its bytes counted -- exactly once, but note
+    # the other analyzers that agreed.
+    def collapse_targets(findings)
+      findings.group_by(&:target_key).map do |_key, group|
+        winner = group.max_by { |f| [f.confidence, -SEVERITY_RANK.fetch(f.severity, 9)] }
+        also = group.map(&:type).uniq - [winner.type]
+        winner.evidence += ["also flagged by: #{also.join(", ")}"] if also.any?
+        winner
+      end
     end
 
     def schema
