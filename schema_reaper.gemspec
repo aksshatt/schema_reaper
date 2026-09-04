@@ -10,13 +10,16 @@ Gem::Specification.new do |spec|
 
   spec.summary = "Find dead columns, unused indexes and schema dead-weight in Rails/ActiveRecord apps."
   spec.description = <<~DESC
-    schema_reaper scans your database schema and your codebase to surface columns,
-    indexes and tables that are no longer referenced. It scores findings by
-    confidence, estimates the disk they reclaim, and generates safe staged
-    migrations to remove them. Static analysis in v0.1; runtime + pg_stat signal
-    fusion on the roadmap.
+    schema_reaper scans your PostgreSQL schema, its planner statistics and your
+    codebase to surface columns, indexes and tables that are no longer used:
+    dead columns and tables, unused and duplicate indexes, missing foreign-key
+    indexes, always-NULL and single-value columns. Findings are scored by
+    confidence (fusing an optional runtime attribute-access signal), carry a
+    reclaimable-bytes estimate, and come with staged, reversible migrations.
+    Ships table/json/markdown/sarif reporters, a CI baseline gate and a trend
+    log.
   DESC
-  spec.homepage = "https://github.com/rrahuldwivedi01/schema_reaper"
+  spec.homepage = "https://github.com/akkshatt-shriffle/schema_reaper"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.1.0"
 

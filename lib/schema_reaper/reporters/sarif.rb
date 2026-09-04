@@ -27,7 +27,7 @@ module SchemaReaper
             "tool" => { "driver" => {
               "name" => "schema_reaper",
               "version" => SchemaReaper::VERSION,
-              "informationUri" => "https://github.com/rrahuldwivedi01/schema_reaper",
+              "informationUri" => "https://github.com/akkshatt-shriffle/schema_reaper",
               "rules" => rules
             } },
             "results" => results
