@@ -22,7 +22,7 @@ module SchemaReaper
 
         table.columns.filter_map do |col|
           next unless col.single_value?
-          next if col.name == table.primary_key
+          next if table.primary_key?(col.name)
           next if config.always_keep_columns.include?(col.name)
           next if gem_reserved?(table.name, col.name)
 

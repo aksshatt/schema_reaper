@@ -40,11 +40,40 @@ module SchemaReaper
     def index_on(cols)
       indexes.find { |i| i.columns == Array(cols) }
     end
+
+    # primary_key may be a single name or, for a composite key, the ordered
+    # list. Array() accepts both so introspectors that still return one name
+    # keep working.
+    def primary_key_columns
+      Array(primary_key)
+    end
+
+    def primary_key?(column_name)
+      primary_key_columns.include?(column_name)
+    end
   end
 
-  DatabaseSchema = Struct.new(:tables, keyword_init: true) do
+  DatabaseSchema = Struct.new(:tables, :index_scan_total, keyword_init: true) do
     def table(name)
       tables.find { |t| t.name == name }
+    end
+
+    def index_count
+      tables.sum { |t| t.indexes.size }
+    end
+
+    # pg_stat counters are cumulative since the last reset, so idx_scan = 0 only
+    # means "unused" if the database has served enough traffic for a used index
+    # to have registered. A database that has taken real queries scans its
+    # indexes far more than once each; below that we are looking at a fresh,
+    # restored, or just-reset cluster where every zero is an artifact.
+    #
+    # nil means the introspector did not report a total -- assume stats are
+    # usable rather than silently dropping findings.
+    def query_history?
+      return true if index_scan_total.nil?
+
+      index_scan_total >= index_count
     end
   end
 end

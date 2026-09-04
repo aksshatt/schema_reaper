@@ -7,6 +7,15 @@ module SchemaReaper
     class DeadTable < Base
       Registry.register(self)
 
+      # Enough of Rails' inflector for table names. A wrong guess only costs a
+      # redundant lookup -- every form is checked and any hit counts -- so the
+      # rules stay small rather than trying to be complete.
+      SINGULAR_RULES = [
+        [/ies\z/, "y"],               # activities -> activity
+        [/(ss|sh|ch|x|z)es\z/, '\1'], # addresses  -> address, boxes -> box
+        [/s\z/, ""]                   # employees  -> employee
+      ].freeze
+
       def call
         schema.tables.reject { |t| ignored?(t) }.filter_map { |t| dead(t) }
       end
@@ -36,9 +45,26 @@ module SchemaReaper
 
       # Match the table name and its singular/camelized model form.
       def referenced?(table)
-        singular = table.name.sub(/s\z/, "")
-        [table.name, singular, camelize(table.name), camelize(singular)]
-          .any? { |form| used?(form) }
+        singular = singularize(table.name)
+        forms = [table.name, singular, camelize(table.name), camelize(singular)]
+        return true if forms.any? { |form| used?(form) }
+
+        embedded_in_identifier?(table.name)
+      end
+
+      def singularize(name)
+        rule = SINGULAR_RULES.find { |pattern, _| name.match?(pattern) }
+        rule ? name.sub(rule[0], rule[1]) : name
+      end
+
+      # Route helpers, i18n keys and CSS selectors bury a table name inside a
+      # longer identifier (admin_crm_activities_path), which the scanner
+      # tokenises as a single word. Count the name as referenced when it appears
+      # as a whole underscore-delimited run inside some token -- `logs` must not
+      # match `catalogs`, but must match `audit_logs_path`.
+      def embedded_in_identifier?(name)
+        pattern = /(?:\A|_)#{Regexp.escape(name)}(?:_|\z)/
+        ctx.used_tokens.any? { |token| token.include?(name) && pattern.match?(token) }
       end
 
       def confidence_for(table)

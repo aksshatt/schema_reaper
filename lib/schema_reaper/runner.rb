@@ -17,6 +17,7 @@ module SchemaReaper
 
     def run
       db = schema
+      warn_missing_query_history(db)
       ctx = Analyzers::Context.new(
         schema: db,
         used_tokens: Static::Scanner.new(@config, root: @root).call,
@@ -30,6 +31,16 @@ module SchemaReaper
     end
 
     private
+
+    # Silently reporting nothing would look like a clean bill of health, so say
+    # why the unused-index analyzer sat this run out.
+    def warn_missing_query_history(db)
+      return if db.query_history?
+
+      warn "schema_reaper: skipping unused_index -- only #{db.index_scan_total} index scan(s) " \
+           "recorded across #{db.index_count} index(es). Scan a database that has served " \
+           "production traffic, or check whether statistics were recently reset."
+    end
 
     def dedupe(findings)
       collapse_targets(drop_findings_on_dead_tables(findings))

@@ -9,6 +9,11 @@ module SchemaReaper
       Registry.register(self)
 
       def call
+        # Without query history every idx_scan is 0, so this analyzer would
+        # report every non-unique index in the database. Report nothing rather
+        # than burying the other analyzers' findings under that noise.
+        return [] unless schema.query_history?
+
         schema.tables.reject { |t| config.ignore_tables.include?(t.name) }
               .flat_map { |t| unused_in(t) }
       end

@@ -20,10 +20,21 @@ module SchemaReaper
       end
 
       def call
-        DatabaseSchema.new(tables: table_names.map { |n| build_table(n) })
+        DatabaseSchema.new(
+          tables: table_names.map { |n| build_table(n) },
+          index_scan_total: index_scan_total
+        )
       end
 
       private
+
+      # Cluster-wide cumulative index scans. Lets the unused-index analyzer tell
+      # "this index is never used" apart from "this database has no query
+      # history", which look identical at the level of a single idx_scan = 0.
+      def index_scan_total
+        exec("SELECT COALESCE(sum(idx_scan), 0) AS total FROM pg_stat_user_indexes")
+          .first&.fetch("total")&.to_i
+      end
 
       def table_names
         exec(<<~SQL).map { |r| r["tablename"] }
@@ -77,15 +88,19 @@ module SchemaReaper
         end
       end
 
+      # Columns must come back in index-key order, not table order: prefix
+      # comparisons (Index#covers?) are only meaningful on the real key order.
+      # unnest(indkey) WITH ORDINALITY preserves that; ORDER BY attnum does not.
       def indexes_for(table)
         exec(<<~SQL, [table]).map do |r|
           SELECT i.relname AS name, ix.indisunique AS "unique", ix.indisprimary AS "primary",
                  s.idx_scan AS scans,
-                 array_to_string(array_agg(a.attname ORDER BY a.attnum), ',') AS cols
+                 array_to_string(array_agg(a.attname ORDER BY k.ord), ',') AS cols
           FROM pg_class t
           JOIN pg_index ix ON t.oid = ix.indrelid
           JOIN pg_class i ON i.oid = ix.indexrelid
-          JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(ix.indkey)
+          JOIN LATERAL unnest(ix.indkey::int2[]) WITH ORDINALITY AS k(attnum, ord) ON TRUE
+          JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = k.attnum
           LEFT JOIN pg_stat_user_indexes s ON s.indexrelid = i.oid
           WHERE t.relname = $1
           GROUP BY i.relname, ix.indisunique, ix.indisprimary, s.idx_scan
@@ -98,12 +113,17 @@ module SchemaReaper
         end
       end
 
+      # Every primary-key column, in key order. A composite key needs the whole
+      # list: returning one arbitrary column leaves the rest looking like
+      # ordinary columns to the analyzers.
       def primary_key_for(table)
-        exec(<<~SQL, [table]).map { |r| r["attname"] }.first
+        exec(<<~SQL, [table]).map { |r| r["attname"] }
           SELECT a.attname
           FROM pg_index i
-          JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
+          JOIN LATERAL unnest(i.indkey::int2[]) WITH ORDINALITY AS k(attnum, ord) ON TRUE
+          JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = k.attnum
           WHERE i.indrelid = $1::regclass AND i.indisprimary
+          ORDER BY k.ord
         SQL
       rescue PG::Error
         nil

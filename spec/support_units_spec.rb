@@ -13,6 +13,50 @@ RSpec.describe "supporting units" do
     )
   end
 
+  describe SchemaReaper::DatabaseSchema do
+    def schema_with(total, index_count)
+      indexes = Array.new(index_count) { |i| { name: "idx_#{i}", columns: ["c#{i}"] } }
+      fake_schema(
+        fake_table("t", columns: [{ name: "id" }], indexes: indexes),
+        index_scan_total: total
+      )
+    end
+
+    it "assumes stats are usable when the introspector reports no total" do
+      expect(schema_with(nil, 10).query_history?).to be(true)
+    end
+
+    it "treats fewer scans than indexes as no query history" do
+      expect(schema_with(2, 10).query_history?).to be(false)
+    end
+
+    it "treats at least one scan per index as query history" do
+      expect(schema_with(10, 10).query_history?).to be(true)
+    end
+  end
+
+  describe "Table#primary_key?" do
+    it "accepts a single primary key name" do
+      table = fake_table("users", primary_key: "id", columns: [{ name: "id" }])
+      expect(table.primary_key?("id")).to be(true)
+      expect(table.primary_key?("email")).to be(false)
+    end
+
+    it "accepts every column of a composite primary key" do
+      table = fake_table("memberships", primary_key: %w[user_id group_id],
+                                        columns: [{ name: "user_id" }, { name: "group_id" }])
+      expect(table.primary_key_columns).to eq(%w[user_id group_id])
+      expect(table.primary_key?("user_id")).to be(true)
+      expect(table.primary_key?("group_id")).to be(true)
+    end
+
+    it "treats a missing primary key as no columns" do
+      table = fake_table("logs", primary_key: nil, columns: [{ name: "id" }])
+      expect(table.primary_key_columns).to eq([])
+      expect(table.primary_key?("id")).to be(false)
+    end
+  end
+
   describe SchemaReaper::Reporters::Bytes do
     it "renders human sizes" do
       expect(described_class.human(512)).to eq("512.0 B")
