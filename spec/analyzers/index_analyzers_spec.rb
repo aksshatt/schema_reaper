@@ -84,5 +84,45 @@ RSpec.describe "index analyzers" do
       )
       expect(findings(described_class, schema).map(&:column)).to eq(["user_id"])
     end
+
+    it "accepts a composite (type, id) index for a polymorphic association" do
+      schema = fake_schema(
+        fake_table("comments",
+                   columns: [{ name: "id" }, { name: "commentable_type" }, { name: "commentable_id" }],
+                   indexes: [{ name: "idx_on_commentable", columns: %w[commentable_type commentable_id] }])
+      )
+      expect(findings(described_class, schema)).to be_empty
+    end
+
+    it "accepts a composite index with trailing columns after the pair" do
+      schema = fake_schema(
+        fake_table("audits",
+                   columns: [{ name: "id" }, { name: "auditable_type" }, { name: "auditable_id" },
+                             { name: "version" }],
+                   indexes: [{ name: "auditable_index",
+                               columns: %w[auditable_type auditable_id version] }])
+      )
+      expect(findings(described_class, schema)).to be_empty
+    end
+
+    it "suggests the composite index when a polymorphic association is unindexed" do
+      schema = fake_schema(
+        fake_table("comments",
+                   columns: [{ name: "id" }, { name: "commentable_type" }, { name: "commentable_id" }])
+      )
+      result = findings(described_class, schema)
+
+      expect(result.map(&:column)).to eq(["commentable_id"])
+      expect(result.first.suggested_fix).to eq("add_index :comments, %i[commentable_type commentable_id]")
+    end
+
+    it "does not accept an index on the id alone as covering a polymorphic pair" do
+      schema = fake_schema(
+        fake_table("comments",
+                   columns: [{ name: "id" }, { name: "commentable_type" }, { name: "commentable_id" }],
+                   indexes: [{ name: "idx_type_only", columns: %w[commentable_type] }])
+      )
+      expect(findings(described_class, schema).map(&:column)).to eq(["commentable_id"])
+    end
   end
 end
