@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.6] - 2026-09-04
+
+### Changed
+- Added `mitkush` (mitanshukushwah@gmail.com) as a gemspec author.
+
 ## [1.0.5] - 2026-09-04
 
 Fixes found by running the gem against a live PostgreSQL database.

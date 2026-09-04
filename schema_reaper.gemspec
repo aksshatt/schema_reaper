@@ -5,8 +5,8 @@ require_relative "lib/schema_reaper/version"
 Gem::Specification.new do |spec|
   spec.name = "schema_reaper"
   spec.version = SchemaReaper::VERSION
-  spec.authors = ["aksshatt"]
-  spec.email = ["akshatpegwar5@gmail.com"]
+  spec.authors = %w[aksshatt mitkush]
+  spec.email = ["akshatpegwar5@gmail.com", "mitanshukushwah@gmail.com"]
 
   spec.summary = "Find and safely remove schema dead-weight in Rails + PostgreSQL apps."
   spec.description =
