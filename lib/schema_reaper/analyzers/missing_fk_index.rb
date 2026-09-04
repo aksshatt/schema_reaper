@@ -22,12 +22,22 @@ module SchemaReaper
       def missing_in(table)
         fk_columns(table).filter_map do |col|
           next if indexed?(table, col)
+          next if empty_column?(table, col) # never advise indexing a column with no data
 
           type_col = polymorphic_type_for(table, col)
           next if type_col && polymorphic_indexed?(table, type_col, col)
 
           finding_for(table, col, type_col)
         end
+      end
+
+      # A foreign-key column that is NULL in every row of a non-empty table:
+      # an index would be pointless, and another analyzer already flags it as
+      # dead. Leave that finding to speak for the column.
+      def empty_column?(table, col)
+        return false unless table.row_count.to_i.positive?
+
+        table.column(col)&.always_null? || false
       end
 
       def finding_for(table, col, type_col)

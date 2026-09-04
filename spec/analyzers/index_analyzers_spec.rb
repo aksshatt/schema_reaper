@@ -124,5 +124,25 @@ RSpec.describe "index analyzers" do
       )
       expect(findings(described_class, schema).map(&:column)).to eq(["commentable_id"])
     end
+
+    it "does not advise indexing a foreign-key column that is NULL in every row" do
+      schema = fake_schema(
+        fake_table("categories", row_count: 4000, columns: [
+                     { name: "id" },
+                     { name: "parent_id", null: true, null_fraction: 1.0 }
+                   ])
+      )
+      expect(findings(described_class, schema)).to be_empty
+    end
+
+    it "still flags an unindexed foreign key that holds data" do
+      schema = fake_schema(
+        fake_table("categories", row_count: 4000, columns: [
+                     { name: "id" },
+                     { name: "parent_id", null: true, null_fraction: 0.2 }
+                   ])
+      )
+      expect(findings(described_class, schema).map(&:column)).to eq(["parent_id"])
+    end
   end
 end

@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.0.8] - 2026-09-04
+
+### Fixed
+- `missing_fk_index` no longer advises `add_index` on a foreign-key column
+  that is NULL in every row of a non-empty table. Indexing an empty column is
+  pointless, and `always_null_column` already flags it for removal; the
+  higher-confidence `missing_fk_index` finding was previously winning the
+  per-column collapse and producing "add an index to this dead column".
+  Found by a clean-room run of 1.0.7 against a live database.
+
 ## [1.0.7] - 2026-09-04
 
 Correctness fixes to introspection and analyzers, all contributed by @mitkush
