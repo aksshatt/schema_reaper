@@ -36,6 +36,14 @@ module SchemaReaper
       self[:reclaimable_bytes] || 0
     end
 
+    # Column and/or index this finding points at, without the table name
+    # (callers that group by table already show it). nil for a whole-table
+    # finding.
+    def target_label
+      parts = [column, index].compact
+      parts.empty? ? nil : parts.join(" · ")
+    end
+
     def to_h
       super.merge(id: id, reclaimable_bytes: reclaimable_bytes)
     end

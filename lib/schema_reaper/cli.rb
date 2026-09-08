@@ -21,9 +21,11 @@ module SchemaReaper
     option :record, type: :boolean, default: false,
                     desc: "append this run to the history log"
     option :min_confidence, type: :numeric, default: 0.0
+    option :color, type: :boolean, default: nil,
+                   desc: "force colour on/off for the table report (default: auto)"
     def scan
       findings = run.select { |f| f.confidence >= options[:min_confidence] }
-      SchemaReaper.reporter(options[:format]).new(findings).render
+      render_report(findings)
 
       History.new(config.history_log).record(findings) if options[:record]
       enforce_baseline(findings) if options[:ci]
@@ -62,6 +64,14 @@ module SchemaReaper
 
     def run
       Runner.new(config: config).run
+    end
+
+    def render_report(findings)
+      if options[:format] == "table"
+        Reporters::Table.new(findings, color: options[:color]).render
+      else
+        SchemaReaper.reporter(options[:format]).new(findings).render
+      end
     end
 
     def enforce_baseline(findings)

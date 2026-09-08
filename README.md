@@ -21,22 +21,46 @@ gem "schema_reaper", group: :development
 bundle install
 ```
 
-Requires Ruby >= 3.1 and PostgreSQL. The database connection resolves from
+Requires Ruby >= 2.7 and PostgreSQL. The database connection resolves from
 `database_url` in `.schema_reaper.yml`, else `ENV["DATABASE_URL"]`.
 
 ## Usage
 
 ```
-bundle exec schema_reaper scan                    # human-readable report
+bundle exec schema_reaper scan                    # grouped terminal report
 bundle exec schema_reaper scan --format markdown  # PR-comment table
 bundle exec schema_reaper scan --format sarif     # GitHub code scanning
 bundle exec schema_reaper scan --format json
 bundle exec schema_reaper scan --ci               # exit 1 on new findings
 bundle exec schema_reaper scan --min-confidence 0.8
+bundle exec schema_reaper scan --no-color         # force plain output
 bundle exec schema_reaper baseline                # accept current findings
 bundle exec schema_reaper trend                   # snapshot + progress delta
 bundle exec schema_reaper generate-migration users legacy_api_token
 ```
+
+The `scan` report groups findings by table and sorts by confidence:
+
+```
+  schema_reaper  5 findings  ~93.8 KB reclaimable
+
+  users
+    █████  90%  medium  missing_fk_index     team_id
+           team_id is a foreign key with no covering index
+           → add_index :users, :team_id
+    ████░  85%  high    always_null_column   api_key  46.9 KB
+           pg_stats.null_frac = 1.0 across ~3000 row(s) · column carries no data
+           → verify with `SELECT count(api_key) FROM users` then stage a removal
+
+  stale_exports
+    ████░  85%  high    dead_table
+           no model or query reference · table holds ~0 row(s)
+           → confirm no external consumer, then `drop_table :stale_exports`
+
+  high 2   medium 1   low 2
+```
+
+Colour is automatic on a terminal, off when piped or `NO_COLOR` is set.
 
 In a Rails app the railtie also gives you
 `rake schema_reaper:scan|baseline|trend` (with `FORMAT=`).

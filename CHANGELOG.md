@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.0.9] - 2026-09-08
+
+### Changed
+- Redesigned the terminal report (`scan` / `scan --format table`):
+  - one summary line (finding count + total reclaimable),
+  - findings grouped under their table, sorted by confidence,
+  - a five-cell confidence bar with the percentage, padded severity and
+    analyzer name, the target column/index, and the reclaimable size,
+  - evidence on one dim `·`-joined line, the fix on a green `→` line,
+  - a footer with a severity tally and a per-analyzer breakdown.
+- Colour is automatic on an interactive terminal and suppressed when output
+  is piped or `NO_COLOR` is set. New `scan --color` / `--no-color` to force it.
+- JSON, SARIF and Markdown reporters are unchanged.
+
 ## [1.0.8] - 2026-09-04
 
 ### Fixed
