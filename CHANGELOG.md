@@ -1,6 +1,9 @@
 # Changelog
 
-## [1.0.9] - 2026-09-09
+## [1.0.10] - 2026-09-09
+
+Supersedes 1.0.9, which was published to RubyGems from an incomplete cut and
+is missing the fixes below. Use 1.0.10.
 
 ### Added
 - Automatic database connection in a Rails app. If `database_url:` is not set in
