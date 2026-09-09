@@ -35,20 +35,31 @@ module SchemaReaper
     def baseline
       findings = run
       Baseline.new(config.baseline_path).write(findings)
-      say "wrote #{findings.size} finding(s) to #{config.baseline_path}"
+      console.title("baseline")
+      console.ok("recorded #{findings.size} finding#{"s" unless findings.size == 1} " \
+                 "as the accepted baseline")
+      console.info("file: #{config.baseline_path}")
+      console.info("`scan --ci` now fails only on findings that appear after this point.")
     end
 
     desc "trend", "Append a snapshot and print progress over time"
     def trend
-      History.new(config.history_log).record(run)
-      require "pp"
-      pp History.new(config.history_log).trend
+      history = History.new(config.history_log)
+      history.record(run)
+      Reporters::Trend.new(history.trend, color: options[:color]).render
     end
 
     desc "generate-migration TABLE COLUMN", "Emit a staged removal migration pair"
     def generate_migration(table, column)
-      MigrationGenerator.new(table: table, column: column).call
-                        .each { |p| say "created #{p}" }
+      paths = MigrationGenerator.new(table: table, column: column).call
+      console.title("generate-migration", "#{table}.#{column}")
+      console.ok("created two migrations:")
+      paths.each { |p| console.info("  #{p}") }
+      console.blank
+      console.list("next:", [
+                     "deploy step 1 (adds `#{column}` to ignored_columns) and let it soak",
+                     "run step 2 (`remove_column`) only once nothing has broken"
+                   ])
     end
 
     desc "version", "Print version"
@@ -74,12 +85,18 @@ module SchemaReaper
       end
     end
 
+    def console
+      @console ||= Reporters::Console.new(color: options[:color])
+    end
+
     def enforce_baseline(findings)
       new_ones = Baseline.new(config.baseline_path).new_among(findings)
       return if new_ones.empty?
 
-      warn "schema_reaper: #{new_ones.size} new finding(s) since baseline"
-      new_ones.each { |f| warn "  - #{f.id}" }
+      console.problem(
+        "#{new_ones.size} new finding#{"s" unless new_ones.size == 1} since the baseline",
+        items: new_ones.map(&:id)
+      )
       exit 1
     end
   end

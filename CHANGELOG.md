@@ -22,6 +22,16 @@
 - Colour is automatic on an interactive terminal and suppressed when output
   is piped or `NO_COLOR` is set. New `scan --color` / `--no-color` to force it.
 - JSON, SARIF and Markdown reporters are unchanged.
+- `trend` now prints a readable progress block — finding count and reclaimable
+  total with signed deltas since the first and previous run, a list of findings
+  newly introduced and resolved, and the snapshot dates — instead of a raw
+  `pp` hash dump.
+- `baseline` and `generate-migration` print a short titled block with a `✓`
+  line and next steps; `generate-migration` spells out the two-step deploy.
+- `scan --ci` reports new findings as a `✗` block on stderr with the finding
+  ids indented under it.
+- The "unused_index skipped / no query history" message is now a single
+  formatted `!` notice on stderr.
 
 ## [1.0.8] - 2026-09-04
 

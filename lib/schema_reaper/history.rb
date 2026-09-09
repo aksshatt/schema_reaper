@@ -49,6 +49,8 @@ module SchemaReaper
         snapshots: snaps.size,
         first_at: first.at,
         last_at: last.at,
+        latest_count: last.count,
+        latest_bytes: last.reclaimable_bytes,
         count_change_total: last.count - first.count,
         count_change_last: last.count - prev.count,
         newly_introduced: (last.ids - prev.ids),

@@ -37,9 +37,11 @@ module SchemaReaper
     def warn_missing_query_history(db)
       return if db.query_history?
 
-      warn "schema_reaper: skipping unused_index -- only #{db.index_scan_total} index scan(s) " \
-           "recorded across #{db.index_count} index(es). Scan a database that has served " \
-           "production traffic, or check whether statistics were recently reset."
+      Reporters::Console.new.notice(
+        "unused_index skipped — only #{db.index_scan_total} scan(s) across " \
+        "#{db.index_count} indexes, so there is no query history to judge by. " \
+        "Run against a database that has served production traffic."
+      )
     end
 
     def dedupe(findings)
