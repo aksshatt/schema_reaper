@@ -12,11 +12,17 @@ module SchemaReaper
         "timestamp with time zone" => 8, "uuid" => 16
       }.freeze
 
-      def initialize(url)
-        raise Error, "no database_url configured" if url.nil? || url.empty?
+      NO_URL = "no database connection found. schema_reaper looks, in order, for: " \
+               "database_url: in .schema_reaper.yml; the DATABASE_URL env var; " \
+               "config/database.yml for RAILS_ENV (default: development, Postgres only)."
 
-        require "pg"
+      def initialize(url)
+        require "pg" # load first so the PG::Error rescue below can resolve
+        raise Error, NO_URL if url.nil? || url.empty?
+
         @conn = PG.connect(url)
+      rescue PG::Error => e
+        raise Error, "could not connect to the database: #{e.message.strip}"
       end
 
       def call

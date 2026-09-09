@@ -2,6 +2,16 @@
 
 ## [1.0.9] - 2026-09-09
 
+### Added
+- Automatic database connection in a Rails app. If `database_url:` is not set in
+  `.schema_reaper.yml` and `DATABASE_URL` is not in the environment,
+  schema_reaper now reads `config/database.yml` — rendering ERB, resolving YAML
+  aliases, honouring `SCHEMA_REAPER_ENV` / `RAILS_ENV` (default `development`),
+  and handling Rails 6+ multi-database sections. `bundle exec schema_reaper
+  scan` works with no setup. PostgreSQL adapters only.
+- Connection and missing-config errors now print a one-line `✗` message
+  instead of a Ruby backtrace.
+
 ### Fixed
 - `pg_class.reltuples` is `-1` on PostgreSQL 14+ for a table that has never
   been analysed. It was being treated as a real row count: `dead_table`

@@ -75,6 +75,9 @@ module SchemaReaper
 
     def run
       Runner.new(config: config).run
+    rescue SchemaReaper::Error => e
+      console.problem(e.message)
+      exit 1
     end
 
     def render_report(findings)

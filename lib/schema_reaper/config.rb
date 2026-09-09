@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "yaml"
+require_relative "database_url"
 
 module SchemaReaper
   # Loaded from .schema_reaper.yml at the project root. Every key has a default
@@ -22,12 +23,13 @@ module SchemaReaper
       "runtime_log" => ".schema_reaper/runtime.jsonl",
       "history_log" => ".schema_reaper/history.jsonl",
       "baseline" => ".schema_reaper/baseline.json",
+      "database_yml" => "config/database.yml", # Rails fallback for the connection
       "require" => [] # extra files to load (custom analyzers)
     }.freeze
 
     def self.load(path = ".schema_reaper.yml")
       raw = File.exist?(path) ? (YAML.safe_load_file(path) || {}) : {}
-      new(deep_merge(DEFAULTS, raw))
+      new(deep_merge(DEFAULTS, raw), root: File.dirname(File.expand_path(path)))
     end
 
     def self.deep_merge(base, override)
@@ -36,12 +38,19 @@ module SchemaReaper
       end
     end
 
-    def initialize(data)
+    def initialize(data, root: Dir.pwd)
       @data = data
+      @root = root
     end
 
+    # Resolution order:
+    #   1. database_url: in .schema_reaper.yml
+    #   2. ENV["DATABASE_URL"]
+    #   3. config/database.yml for the current environment (Rails apps)
     def database_url
-      @data["database_url"] || ENV.fetch("DATABASE_URL", nil)
+      @data["database_url"] ||
+        ENV.fetch("DATABASE_URL", nil) ||
+        DatabaseUrl.from_rails(root: @root, path: @data["database_yml"])
     end
 
     def scan_paths

@@ -21,8 +21,16 @@ gem "schema_reaper", group: :development
 bundle install
 ```
 
-Requires Ruby >= 2.7 and PostgreSQL. The database connection resolves from
-`database_url` in `.schema_reaper.yml`, else `ENV["DATABASE_URL"]`.
+Requires Ruby >= 2.7 and PostgreSQL. The database connection is resolved in
+this order:
+
+1. `database_url:` in `.schema_reaper.yml`
+2. `ENV["DATABASE_URL"]`
+3. `config/database.yml` for the current environment (`SCHEMA_REAPER_ENV` /
+   `RAILS_ENV`, default `development`) — ERB and YAML aliases are handled, as
+   are Rails 6+ multi-database sections
+
+So in a Rails app, `bundle exec schema_reaper scan` works with no setup.
 
 ## Usage
 
