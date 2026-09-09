@@ -40,7 +40,11 @@ module SchemaReaper
         YAML.safe_load(rendered, [], [], true)
       end
     rescue StandardError
-      YAML.load_file(file)
+      # ERB that reaches into Rails -- Rails.application.credentials is the
+      # common one -- cannot render outside a booted Rails process. Resolving
+      # nothing yields a clear "no database_url configured"; parsing the file
+      # un-rendered would build a connection URL out of template text.
+      nil
     end
 
     # Rails 6+ allows `development: { primary: {...}, replica: {...} }`. Pick the
@@ -67,12 +71,19 @@ module SchemaReaper
       db = section["database"]
       return nil if db.to_s.empty?
 
-      userinfo = [section["username"], section["password"]].compact.join(":")
+      userinfo = [section["username"], section["password"]].compact.map { |v| escape(v) }.join(":")
       host = section["host"].to_s
       hostport = host.empty? ? "" : "#{host}#{":#{section["port"]}" if section["port"]}"
       auth = userinfo.empty? ? "" : "#{userinfo}@"
 
       "postgresql://#{auth}#{hostport}/#{db}"
+    end
+
+    # Passwords routinely contain characters that are structural in a URL.
+    # An unescaped "@" makes libpq read the rest as the host, so it reports
+    # a bogus hostname rather than a credential problem.
+    def escape(value)
+      ERB::Util.url_encode(value.to_s)
     end
   end
 end
