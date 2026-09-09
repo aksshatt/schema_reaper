@@ -17,6 +17,22 @@ RSpec.describe SchemaReaper::Analyzers::DeadTable do
     expect(findings("orders", used: %w[orders])).to be_empty
   end
 
+  context "when the row count is unknown (table never analysed)" do
+    subject(:finding) { findings("legacy_imports", used: [], row_count: nil).first }
+
+    it "reports it at medium confidence, not the 0.4 non-empty level" do
+      expect(finding.confidence).to eq(0.5)
+    end
+
+    it "says the count is unknown and suggests ANALYZE" do
+      expect(finding.evidence).to include(a_string_matching(/row count unknown.*ANALYZE/))
+    end
+
+    it "does not produce a negative reclaimable estimate" do
+      expect(finding.reclaimable_bytes).to be >= 0
+    end
+  end
+
   describe "singular and model forms" do
     it "matches an -ies table against its model constant" do
       expect(findings("crm_activities", used: %w[crmactivity])).to be_empty

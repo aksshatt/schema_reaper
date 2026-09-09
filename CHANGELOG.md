@@ -1,6 +1,15 @@
 # Changelog
 
-## [1.0.9] - 2026-09-08
+## [1.0.9] - 2026-09-09
+
+### Fixed
+- `pg_class.reltuples` is `-1` on PostgreSQL 14+ for a table that has never
+  been analysed. It was being treated as a real row count: `dead_table`
+  printed "table holds ~-1 row(s)", scored it at the 0.4 "non-empty" level,
+  and the reclaimable-bytes estimate went negative. A negative `reltuples` is
+  now mapped to "unknown" — the finding drops to 0.5 confidence, the evidence
+  says the count is unknown and suggests running `ANALYZE`, and the byte
+  estimate stays at 0. Found by running against a real production schema.
 
 ### Changed
 - Redesigned the terminal report (`scan` / `scan --format table`):

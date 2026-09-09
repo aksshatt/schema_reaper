@@ -140,10 +140,17 @@ module SchemaReaper
         SQL
       end
 
+      # pg_class.reltuples is an estimate maintained by ANALYZE/VACUUM. On
+      # PostgreSQL 14+ it is -1 for a relation that has never been analysed,
+      # which is "unknown", not "minus one row". Map anything negative to nil so
+      # analyzers treat the count as unavailable.
       def row_count_for(table)
-        exec(<<~SQL, [table]).first&.fetch("reltuples")&.to_f&.round
+        raw = exec(<<~SQL, [table]).first&.fetch("reltuples")&.to_f
           SELECT reltuples FROM pg_class WHERE relname = $1
         SQL
+        return nil if raw.nil? || raw.negative?
+
+        raw.round
       end
 
       def exec(sql, params = nil)

@@ -76,7 +76,11 @@ module SchemaReaper
       def evidence_for(table)
         ev = ["no model or query reference to `#{table.name}` in scanned code"]
         ev << "runtime data shows no access" if runtime.present?
-        ev << "table holds ~#{table.row_count} row(s)" unless table.row_count.nil?
+        ev << if table.row_count.nil?
+                "row count unknown — run ANALYZE for a confidence boost"
+              else
+                "table holds ~#{table.row_count} row(s)"
+              end
         ev
       end
 
