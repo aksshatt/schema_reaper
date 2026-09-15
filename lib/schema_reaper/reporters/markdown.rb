@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "bytes"
+require_relative "reclaim"
 
 module SchemaReaper
   module Reporters
@@ -18,8 +18,7 @@ module SchemaReaper
           return
         end
 
-        @io.puts "\n#{@findings.size} finding(s), " \
-                 "~**#{Bytes.human(total)}** reclaimable.\n\n"
+        @io.puts "\n#{summary_line}\n\n"
         @io.puts "| Severity | Confidence | Type | Target | Reclaims | Fix |"
         @io.puts "|---|---|---|---|---|---|"
         rows.each { |r| @io.puts r }
@@ -27,16 +26,22 @@ module SchemaReaper
 
       private
 
+      # "54 finding(s). **~93.8 KB reclaimable.**" -- or, when the row count is
+      # unknown or the estimate is genuinely zero, no reclaim clause at all,
+      # matching the terminal report rather than claiming a number it does not
+      # have.
+      def summary_line
+        text = Reclaim.summary(@findings)
+        line = "#{@findings.size} finding(s)."
+        line + (text ? " **#{text}.**" : "")
+      end
+
       def rows
         @findings.sort_by { |f| -f.confidence }.map do |f|
           target = [f.table, f.column, f.index].compact.join("`.`")
           "| #{f.severity} | #{(f.confidence * 100).round}% | `#{f.type}` | " \
-            "`#{target}` | #{Bytes.human(f.reclaimable_bytes)} | #{f.suggested_fix} |"
+            "`#{target}` | #{Reclaim.cell(f)} | #{f.suggested_fix} |"
         end
-      end
-
-      def total
-        @findings.sum(&:reclaimable_bytes)
       end
     end
   end
