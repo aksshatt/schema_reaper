@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.0.12] - 2026-09-15
+
+### Fixed
+- **`--format markdown` claimed `0 B reclaimable` when the row count was
+  unknown.** `Table` learned in 1.0.11 that `reclaimable_bytes` is `nil`
+  both when the true value is zero and when the row count has never been
+  measured, and that a report should say which. `Markdown` summed the raw
+  bytes directly and always printed a total, so on an unanalysed database
+  it stated there was nothing to reclaim — the exact claim the 1.0.11 fix
+  was written to stop, just in the one format meant for an unattended PR
+  comment or CI job summary. The per-row `Reclaims` column had the same
+  bug: an unmeasured finding showed `0.0 B`, indistinguishable from one
+  that genuinely frees nothing. The summary/unmeasured logic now lives in
+  one shared `Reporters::Reclaim` module used by both reporters, so the
+  two formats cannot answer the same question differently again. (#7,
+  mitkush)
+
 ## [1.0.11] - 2026-09-15
 
 Everything below landed after 1.0.10 was cut, so 1.0.10 on RubyGems contains
