@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "tmpdir"
+require "uri"
 
 RSpec.describe SchemaReaper::DatabaseUrl do
   def with_db_yml(body)
@@ -100,6 +101,49 @@ RSpec.describe SchemaReaper::DatabaseUrl do
 
   it "returns nil when there is no database.yml" do
     Dir.mktmpdir { |dir| expect(described_class.from_rails(root: dir)).to be_nil }
+  end
+
+  it "percent-escapes credentials that contain URL-structural characters" do
+    with_db_yml(<<~YML) do |dir|
+      development:
+        adapter: postgresql
+        database: myapp
+        host: db.internal
+        username: app@corp
+        password: "p@ss/w#rd"
+    YML
+      url = described_class.from_rails(root: dir)
+
+      expect(url).to eq("postgresql://app%40corp:p%40ss%2Fw%23rd@db.internal/myapp")
+      expect(URI.parse(url).host).to eq("db.internal")
+    end
+  end
+
+  it "leaves an ordinary password unchanged" do
+    with_db_yml(<<~YML) do |dir|
+      development:
+        adapter: postgresql
+        database: myapp
+        host: db.internal
+        username: app
+        password: secret
+    YML
+      expect(described_class.from_rails(root: dir))
+        .to eq("postgresql://app:secret@db.internal/myapp")
+    end
+  end
+
+  it "resolves nothing when ERB cannot be rendered outside Rails" do
+    with_db_yml(<<~YML) do |dir|
+      development:
+        adapter: postgresql
+        database: myapp
+        host: db.internal
+        username: app
+        password: <%= Rails.application.credentials.dig(:db, :password) %>
+    YML
+      expect(described_class.from_rails(root: dir)).to be_nil
+    end
   end
 end
 
