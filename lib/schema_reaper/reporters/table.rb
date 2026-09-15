@@ -3,6 +3,7 @@
 require_relative "bytes"
 require_relative "ansi"
 require_relative "rollup"
+require_relative "reclaim"
 
 module SchemaReaper
   module Reporters
@@ -57,18 +58,8 @@ module SchemaReaper
                  .map { |t, n| "#{t} #{n}" }.join(" · ")
       end
 
-      # A reclaim estimate needs a row count, and pg reports reltuples = -1 for
-      # a table it has never analysed. Printing 0.0 B for an unknown reads as
-      # "nothing to gain here", which is a different claim entirely.
       def reclaim_text
-        return "~#{Bytes.human(total_reclaimable)} reclaimable" if total_reclaimable.positive?
-        return nil unless unmeasured?
-
-        "reclaim estimate unavailable — run ANALYZE to populate table statistics"
-      end
-
-      def unmeasured?
-        @findings.any? { |f| f.bytes_per_row.to_i.positive? && !f.reclaim_known? }
+        Reclaim.summary(@findings)
       end
 
       def rolled_up

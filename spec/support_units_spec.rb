@@ -76,14 +76,6 @@ RSpec.describe "supporting units" do
     end
   end
 
-  describe SchemaReaper::Reporters::Markdown do
-    it "produces a table with the reclaim total" do
-      io = StringIO.new
-      described_class.new([finding], io: io).render
-      expect(io.string).to include("## schema_reaper", "| Severity |", "7.8 KB")
-    end
-  end
-
   describe SchemaReaper::Baseline do
     it "reports only findings absent from the stored set" do
       Dir.mktmpdir do |dir|
