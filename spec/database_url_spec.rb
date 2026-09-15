@@ -132,4 +132,19 @@ RSpec.describe SchemaReaper::Config do
       expect(described_class.load(cfg_path).database_url).to eq("postgres:///explicit")
     end
   end
+
+  it "loads the config file on Psych versions without safe_load_file" do
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, ".schema_reaper.yml")
+      File.write(path, "scan_paths: [engines]\n")
+
+      # Simulate Psych < 3.3 (Ruby 2.7), where safe_load_file does not exist.
+      allow(YAML).to receive(:respond_to?).and_call_original
+      allow(YAML).to receive(:respond_to?).with(:safe_load_file).and_return(false)
+      allow(YAML).to receive(:safe_load_file)
+        .and_raise(NoMethodError, "undefined method `safe_load_file' for Psych:Module")
+
+      expect(described_class.load(path).scan_paths).to eq(["engines"])
+    end
+  end
 end

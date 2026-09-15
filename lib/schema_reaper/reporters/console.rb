@@ -21,7 +21,9 @@ module SchemaReaper
 
       # "  schema_reaper trend  ·  3 snapshots"
       def title(command, meta = nil)
-        line = "  #{@a.paint("schema_reaper", :bold)} #{@a.paint(command, :bold)}"
+        # +"" : on Ruby <= 2.7 an interpolated string whose parts are all frozen
+        # literals is itself frozen, so the append below raises FrozenError.
+        line = +"  #{@a.paint("schema_reaper", :bold)} #{@a.paint(command, :bold)}"
         line << "  #{@a.paint("·  #{meta}", :dim)}" if meta
         @out.puts
         @out.puts line
