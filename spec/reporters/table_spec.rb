@@ -57,6 +57,33 @@ RSpec.describe SchemaReaper::Reporters::Table do
     finding_line = out.lines.find { |l| l.include?("dead_column") }
     expect(finding_line).not_to match(/B\s*$/)
   end
+
+  it "names the finding types and how many tables are affected" do
+    out = render([finding(table: "users"), finding(table: "orders", type: :missing_fk_index)])
+    expect(out).to include("2 findings across 2 tables")
+    expect(out).to include("dead_column 1", "missing_fk_index 1")
+  end
+
+  it "reports the reclaim total when the row count is known" do
+    expect(render([finding])).to include("7.8 KB reclaimable")
+  end
+
+  it "says the estimate is unavailable when the row count is unknown" do
+    out = render([finding(reclaimable_bytes: nil, bytes_per_row: 8)])
+    expect(out).to include("reclaim estimate unavailable", "run ANALYZE")
+  end
+
+  it "stays quiet about reclaim when the tables are known to be empty" do
+    out = render([finding(reclaimable_bytes: 0, bytes_per_row: 8)])
+    expect(out).not_to include("reclaim estimate unavailable")
+    expect(out).not_to include("0.0 B reclaimable")
+  end
+
+  it "stays quiet about reclaim for findings that free no disk" do
+    out = render([finding(type: :missing_fk_index, bytes_per_row: 0, reclaimable_bytes: 0)])
+    expect(out).not_to include("reclaimable")
+    expect(out).not_to include("ANALYZE")
+  end
 end
 
 RSpec.describe SchemaReaper::Reporters::Ansi do

@@ -33,10 +33,36 @@ module SchemaReaper
 
       def header
         @io.puts
-        @io.puts "  #{@a.paint("schema_reaper", :bold)}  " \
-                 "#{@a.paint("#{@findings.size} finding#{"s" unless @findings.size == 1}", :bold)}  " \
-                 "#{@a.paint("~#{Bytes.human(total_reclaimable)} reclaimable", :dim)}"
+        @io.puts "  #{@a.paint("schema_reaper", :bold)}  #{@a.paint(scope_text, :bold)}"
+        @io.puts "  #{@a.paint(type_breakdown, :dim)}"
+        @io.puts "  #{@a.paint(reclaim_text, :dim)}" if reclaim_text
         @io.puts
+      end
+
+      def scope_text
+        tables = @findings.map(&:table).uniq.size
+        "#{@findings.size} finding#{"s" unless @findings.size == 1} across " \
+          "#{tables} table#{"s" unless tables == 1}"
+      end
+
+      def type_breakdown
+        @findings.group_by(&:type).transform_values(&:size)
+                 .sort_by { |_t, n| -n }
+                 .map { |t, n| "#{t} #{n}" }.join(" · ")
+      end
+
+      # A reclaim estimate needs a row count, and pg reports reltuples = -1 for
+      # a table it has never analysed. Printing 0.0 B for an unknown reads as
+      # "nothing to gain here", which is a different claim entirely.
+      def reclaim_text
+        return "~#{Bytes.human(total_reclaimable)} reclaimable" if total_reclaimable.positive?
+        return nil unless unmeasured?
+
+        "reclaim estimate unavailable — run ANALYZE to populate table statistics"
+      end
+
+      def unmeasured?
+        @findings.any? { |f| f.bytes_per_row.to_i.positive? && !f.reclaim_known? }
       end
 
       def grouped
@@ -89,12 +115,8 @@ module SchemaReaper
           @a.severity(sev, "#{sev} #{n}") if n
         end.join("   ")
 
-        by_type = @findings.group_by(&:type).transform_values(&:size)
-                           .sort_by { |_t, n| -n }
-                           .map { |t, n| "#{t} #{n}" }.join(" · ")
-
         @io.puts "  #{tally}"
-        @io.puts "  #{@a.paint(by_type, :dim)}"
+        @io.puts "  #{@a.paint(type_breakdown, :dim)}"
       end
 
       def total_reclaimable
