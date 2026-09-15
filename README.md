@@ -47,7 +47,8 @@ bundle exec schema_reaper trend                   # snapshot + progress delta
 bundle exec schema_reaper generate-migration users legacy_api_token
 ```
 
-The `scan` report groups findings by table and sorts by confidence:
+The `scan` report rolls up findings that say the same thing about different
+tables, then groups the rest by table and sorts by confidence:
 
 ```
   schema_reaper  5 findings across 2 tables

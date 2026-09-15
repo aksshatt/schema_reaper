@@ -2,14 +2,19 @@
 
 require_relative "bytes"
 require_relative "ansi"
+require_relative "rollup"
 
 module SchemaReaper
   module Reporters
-    # Human-readable terminal report: a summary line, findings grouped by table
-    # and sorted by confidence, then a severity/type tally. Colour is used only
-    # on an interactive terminal (see Ansi).
+    # Human-readable terminal report: a summary line, then findings. Findings
+    # that say the same thing about different tables are rolled up into one
+    # entry; the rest are grouped by table and sorted by confidence. Colour is
+    # used only on an interactive terminal (see Ansi).
     class Table
       SEV_ORDER = { high: 0, medium: 1, low: 2 }.freeze
+
+      # Width to wrap the target list of a rolled-up entry.
+      TARGET_LINE_WIDTH = 92
 
       def initialize(findings, io: $stdout, color: nil)
         @findings = findings
@@ -21,7 +26,8 @@ module SchemaReaper
         return render_clean if @findings.empty?
 
         header
-        grouped.each { |table, group| render_table(table, group) }
+        rolled_up.each { |key, group| render_rollup(key, group) }
+        grouped(itemised).each { |table, group| render_table(table, group) }
         footer
       end
 
@@ -65,8 +71,49 @@ module SchemaReaper
         @findings.any? { |f| f.bytes_per_row.to_i.positive? && !f.reclaim_known? }
       end
 
-      def grouped
-        @findings
+      def rolled_up
+        partitioned.first
+      end
+
+      def itemised
+        partitioned.last
+      end
+
+      def partitioned
+        @partitioned ||= Rollup.partition(@findings)
+      end
+
+      def render_rollup(key, group)
+        type, evidence, fix = key
+        first = group.first
+        @io.puts rollup_head(type, first, group.size)
+        @io.puts "           #{@a.paint(evidence, :dim)}"
+        @io.puts "           #{@a.paint("→ #{fix}", :green)}"
+        target_lines(group).each { |line| @io.puts "           #{@a.paint(line, :dim)}" }
+        @io.puts
+      end
+
+      def rollup_head(type, first, count)
+        pct = (first.confidence * 100).round
+        bar = @a.confidence_bar(first.confidence, first.severity)
+        sev = @a.severity(first.severity, format("%-6s", first.severity))
+        format("    %s %3d%%  %s  %s  %s", bar, pct, sev,
+               @a.paint(format("%-19s", type), :bold),
+               @a.paint("#{count} targets", :bold, :magenta))
+      end
+
+      # "users.team_id · orders.buyer_id · ..." wrapped to a readable width.
+      def target_lines(group)
+        labels = group.map { |f| [f.table, f.target_label].compact.join(".") }.sort
+        labels.each_with_object([+""]) do |label, lines|
+          lines << +"" if !lines.last.empty? && lines.last.length + label.length + 3 > TARGET_LINE_WIDTH
+          lines.last << " · " unless lines.last.empty?
+          lines.last << label
+        end
+      end
+
+      def grouped(findings)
+        findings
           .sort_by { |f| [-f.confidence, SEV_ORDER.fetch(f.severity, 9)] }
           .group_by(&:table)
       end
