@@ -58,12 +58,15 @@ module SchemaReaper
       end
 
       # Builds a Finding, filling in reclaimable_bytes from the row count.
+      # An unknown row count leaves reclaimable_bytes nil: "we cannot say" is
+      # not the same claim as "zero bytes", and reporters need to tell them
+      # apart. Finding#reclaimable_bytes still reads 0 for arithmetic.
       def finding(table:, bytes_per_row: 0, row_count: nil, **rest)
-        rows = row_count || schema.table(table)&.row_count || 0
+        rows = row_count || schema.table(table)&.row_count
         Finding.new(
           table: table,
           bytes_per_row: bytes_per_row,
-          reclaimable_bytes: bytes_per_row * rows,
+          reclaimable_bytes: rows && (bytes_per_row * rows),
           **rest
         )
       end

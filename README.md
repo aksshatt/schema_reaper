@@ -50,7 +50,9 @@ bundle exec schema_reaper generate-migration users legacy_api_token
 The `scan` report groups findings by table and sorts by confidence:
 
 ```
-  schema_reaper  5 findings  ~93.8 KB reclaimable
+  schema_reaper  5 findings across 2 tables
+  missing_fk_index 3 · always_null_column 1 · dead_column 1
+  ~93.8 KB reclaimable
 
   users
     █████  90%  medium  missing_fk_index     team_id
