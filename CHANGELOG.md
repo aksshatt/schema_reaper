@@ -1,5 +1,79 @@
 # Changelog
 
+## [1.0.11] - 2026-09-15
+
+Everything below landed after 1.0.10 was cut, so 1.0.10 on RubyGems contains
+none of it.
+
+### Fixed
+- **Composite index columns were read in table order, not index-key order.**
+  `indexes_for` aggregated with `ORDER BY a.attnum` — a column's position in
+  the *table* — so `(company_id, email)` came back as `email,company_id`.
+  Since `Index#covers?` is a prefix test, this broke `duplicate_index` in both
+  directions: it recommended `remove_index` on indexes that are not redundant
+  (dropping one would degrade queries on its leading column), and missed
+  genuinely redundant ones. `missing_fk_index` read the same corrupted order
+  through `indexed?`. Now joins `unnest(indkey) WITH ORDINALITY`. (#1, mitkush)
+- **`primary_key_for` returned one arbitrary column of a composite key.** It
+  matched `attnum = ANY(indkey)` with no `ORDER BY` and took `.first`, so the
+  other key columns looked like ordinary columns to the analyzers and could be
+  reported as `dead_column` or `single_value_column` — suggesting you drop part
+  of a primary key. Now returns every key column in order; `Table#primary_key?`
+  accepts a name or a list. (#1, mitkush)
+- **Polymorphic associations were reported as unindexed foreign keys.** A
+  `*_id` paired with a `*_type` is only ever queried with the type, so the
+  index that matters is the composite `(type, id)` — but `indexed?` only asked
+  whether the column led *some* index. Rails apps were told to add an index the
+  planner would never use. (#1, mitkush)
+- **`dead_table` missed models behind `-ies` tables and route helpers.**
+  `referenced?` singularised with `sub(/s\z/, "")`, turning `crm_activities`
+  into `crm_activitie`, so `CrmActivity` never matched. Because
+  `drop_findings_on_dead_tables` discards every column- and index-level finding
+  for a table called dead, one bad `dead_table` silently suppressed everything
+  else about that table. Inflection now handles `-ies`/`-sses`/`-xes`, and a
+  table name is also matched inside longer identifiers such as
+  `admin_crm_activities_path`. (#1, mitkush)
+- **Ruby 2.7 was broken despite being the declared floor.** `Config.load`
+  called `YAML.safe_load_file`, which arrived in Psych 3.3 (Ruby 3.0), so every
+  command crashed for any 2.7 user with a `.schema_reaper.yml`.
+  `Console#title` appended to an interpolated string, which is frozen on
+  Ruby <= 2.7. (#2, mitkush)
+- **`config/database.yml` credentials were not URL-escaped.** A password
+  containing `@` made libpq read the rest as the host, reporting
+  `could not translate host name "ss@localhost"` — a hostname the user never
+  configured. Also, when ERB failed to render (commonly
+  `Rails.application.credentials` outside a booted Rails), the resolver fell
+  back to parsing the file *un-rendered* and built a connection URL out of
+  template text; it now resolves nothing so the real error surfaces. (#1,
+  mitkush)
+- **An unknown reclaim estimate was printed as `0 B`.** A byte estimate needs a
+  row count, and `reltuples = -1` means unknown; `Base#finding` turned that into
+  zero, so reports opened with `~0.0 B reclaimable` — "nothing to gain" rather
+  than "cannot say". (#4, mitkush)
+
+### Changed
+- **`unused_index` is skipped when the database has no query history.**
+  `idx_scan = 0` means either "never used" or "this database has answered no
+  queries". On a freshly loaded schema the analyzer reported every non-unique
+  index — 197 of 266 findings on one app. It now compares cluster-wide
+  `idx_scan` against the index count and explains the skip on stderr. (#2,
+  mitkush)
+- **`missing_fk_index` confidence is tiered by evidence.** A declared FK
+  constraint scores 0.9; a `*_id` name with a table it plausibly references
+  scores 0.7; a `*_id` name with nothing to reference scores 0.5 and drops to
+  `:low`. Previously `voter_id` and `upi_id` were reported as confidently as a
+  real constraint, which made `--min-confidence` useless for this analyzer.
+  Nothing is dropped. (#3, mitkush)
+- **The report says what it contains.** The header now carries the finding
+  count, how many tables are affected, and the type breakdown — previously only
+  a tally in the footer, 245 lines below on a large report. (#4, mitkush)
+- **Findings that differ only in the names they mention are rolled up.** 37
+  missing foreign-key indexes spent 111 lines repeating one sentence. They now
+  collapse into a single entry that keeps the confidence bar, states the fix as
+  a template, and lists every target. Nothing is summarised away, and findings
+  whose evidence genuinely differs — every `duplicate_index` names a different
+  index pair — stay itemised. 246 lines to 124 on one app. (#5, mitkush)
+
 ## [1.0.10] - 2026-09-09
 
 Supersedes 1.0.9, which was published to RubyGems from an incomplete cut and
