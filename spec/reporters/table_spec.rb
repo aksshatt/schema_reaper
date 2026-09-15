@@ -84,6 +84,29 @@ RSpec.describe SchemaReaper::Reporters::Table do
     expect(out).not_to include("reclaimable")
     expect(out).not_to include("ANALYZE")
   end
+
+  it "rolls repeated findings into one entry listing their targets" do
+    list = %w[a b c d].map do |t|
+      finding(type: :missing_fk_index, table: "#{t}_table", column: "#{t}_id",
+              bytes_per_row: 0, reclaimable_bytes: 0,
+              evidence: ["#{t}_id has no covering index"],
+              suggested_fix: "add_index :#{t}_table, :#{t}_id")
+    end
+    out = render(list)
+
+    expect(out).to include("4 targets")
+    expect(out).to include("<column> has no covering index")
+    expect(out).to include("→ add_index :<table>, :<column>")
+    expect(out).to include("a_table.a_id", "d_table.d_id")
+    expect(out.scan("has no covering index").size).to eq(1)
+  end
+
+  it "still spells out findings that are not repeated" do
+    out = render([finding(table: "users"), finding(table: "orders", column: "x")])
+    expect(out).to match(/^  users$/)
+    expect(out).to match(/^  orders$/)
+    expect(out).not_to include("targets")
+  end
 end
 
 RSpec.describe SchemaReaper::Reporters::Ansi do
