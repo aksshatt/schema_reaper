@@ -144,5 +144,56 @@ RSpec.describe "index analyzers" do
       )
       expect(findings(described_class, schema).map(&:column)).to eq(["parent_id"])
     end
+
+    describe "confidence tiers" do
+      def tier(col, tables)
+        schema = fake_schema(*tables)
+        findings(SchemaReaper::Analyzers::MissingFkIndex, schema).find { |f| f.column == col }
+      end
+
+      it "is highest for a declared foreign key constraint" do
+        f = tier("post_id", [
+                   fake_table("comments", foreign_keys: %w[post_id],
+                                          columns: [{ name: "id" }, { name: "post_id" }]),
+                   fake_table("posts", columns: [{ name: "id" }])
+                 ])
+        expect(f.confidence).to eq(described_class::CONSTRAINT_CONFIDENCE)
+        expect(f.evidence.first).to include("declared foreign key constraint")
+      end
+
+      it "is middling for a *_id name with a table it plausibly references" do
+        f = tier("account_id", [
+                   fake_table("events", columns: [{ name: "id" }, { name: "account_id" }]),
+                   fake_table("accounts", columns: [{ name: "id" }])
+                 ])
+        expect(f.confidence).to eq(described_class::REFERENT_CONFIDENCE)
+        expect(f.evidence.first).to include("named like a reference to `accounts`")
+      end
+
+      it "is lowest for a *_id name with nothing to reference" do
+        f = tier("voter_id", [
+                   fake_table("profiles", columns: [{ name: "id" }, { name: "voter_id" }])
+                 ])
+        expect(f.confidence).to eq(described_class::NAME_ONLY_CONFIDENCE)
+        expect(f.severity).to eq(:low)
+        expect(f.evidence.first).to include("matched on the _id suffix alone")
+      end
+
+      it "pluralises a -y stem when looking for the referent" do
+        f = tier("company_id", [
+                   fake_table("contacts", columns: [{ name: "id" }, { name: "company_id" }]),
+                   fake_table("companies", columns: [{ name: "id" }])
+                 ])
+        expect(f.confidence).to eq(described_class::REFERENT_CONFIDENCE)
+      end
+
+      it "keeps a declared constraint at full confidence with no referent table" do
+        f = tier("manager_id", [
+                   fake_table("staff", foreign_keys: %w[manager_id],
+                                       columns: [{ name: "id" }, { name: "manager_id" }])
+                 ])
+        expect(f.confidence).to eq(described_class::CONSTRAINT_CONFIDENCE)
+      end
+    end
   end
 end

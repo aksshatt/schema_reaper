@@ -28,8 +28,17 @@ module SchemaReaper
     }.freeze
 
     def self.load(path = ".schema_reaper.yml")
-      raw = File.exist?(path) ? (YAML.safe_load_file(path) || {}) : {}
+      raw = File.exist?(path) ? (safe_load_file(path) || {}) : {}
       new(deep_merge(DEFAULTS, raw), root: File.dirname(File.expand_path(path)))
+    end
+
+    # Psych.safe_load_file arrived in Psych 3.3 (Ruby 3.0), but the gem supports
+    # Ruby 2.7. Reading the file ourselves is equivalent -- safe_load_file
+    # defaults to aliases: false, which is what safe_load does too.
+    def self.safe_load_file(path)
+      return YAML.safe_load_file(path) if YAML.respond_to?(:safe_load_file)
+
+      YAML.safe_load(File.read(path))
     end
 
     def self.deep_merge(base, override)

@@ -36,6 +36,12 @@ module SchemaReaper
       self[:reclaimable_bytes] || 0
     end
 
+    # False when the row count was unavailable, so the byte estimate is
+    # unknown rather than zero.
+    def reclaim_known?
+      !self[:reclaimable_bytes].nil?
+    end
+
     # Column and/or index this finding points at, without the table name
     # (callers that group by table already show it). nil for a whole-table
     # finding.
