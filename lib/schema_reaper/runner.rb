@@ -23,6 +23,7 @@ module SchemaReaper
         used_tokens: Static::Scanner.new(@config, root: @root).call,
         runtime: runtime_report,
         gem_columns: gem_columns(db),
+        gem_owned_tables: gem_owned_tables,
         config: @config
       )
 
@@ -87,6 +88,12 @@ module SchemaReaper
         installed: GemAwareness.installed_gems,
         tables: db.tables
       )
+    end
+
+    def gem_owned_tables
+      return Set.new unless @config.gem_awareness?
+
+      GemAwareness.owned_tables(installed: GemAwareness.installed_gems)
     end
 
     def load_plugins

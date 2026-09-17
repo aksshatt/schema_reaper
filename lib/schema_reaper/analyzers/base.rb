@@ -1,20 +1,28 @@
 # frozen_string_literal: true
 
+require "set"
+
 module SchemaReaper
   module Analyzers
     # Context passed to every analyzer's #call.
-    #   schema       - DatabaseSchema
-    #   used_tokens  - Set<String> from the static scan
-    #   runtime      - Runtime::Report (may be empty)
-    #   gem_columns  - Hash{table_name => Set<column_name>} reserved by gems
-    #   config       - Config
-    Context = Struct.new(:schema, :used_tokens, :runtime, :gem_columns, :config, keyword_init: true) do
+    #   schema           - DatabaseSchema
+    #   used_tokens      - Set<String> from the static scan
+    #   runtime          - Runtime::Report (may be empty)
+    #   gem_columns      - Hash{table_name => Set<column_name>} reserved by gems
+    #   gem_owned_tables - Set<table_name> created and owned outright by a gem
+    #   config           - Config
+    Context = Struct.new(:schema, :used_tokens, :runtime, :gem_columns, :gem_owned_tables, :config,
+                         keyword_init: true) do
       def runtime
         self[:runtime] || Runtime::Report.empty
       end
 
       def gem_columns
         self[:gem_columns] || {}
+      end
+
+      def gem_owned_tables
+        self[:gem_owned_tables] || Set.new
       end
     end
 
@@ -55,6 +63,10 @@ module SchemaReaper
 
       def gem_reserved?(table, column)
         ctx.gem_columns.fetch(table, []).include?(column)
+      end
+
+      def gem_owned_table?(table)
+        ctx.gem_owned_tables.include?(table)
       end
 
       # Builds a Finding, filling in reclaimable_bytes from the row count.

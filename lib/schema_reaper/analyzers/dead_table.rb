@@ -24,7 +24,8 @@ module SchemaReaper
 
       def ignored?(table)
         config.ignore_tables.include?(table.name) ||
-          table.name.start_with?("active_storage_", "action_text_", "action_mailbox_")
+          table.name.start_with?("active_storage_", "action_text_", "action_mailbox_") ||
+          gem_owned_table?(table.name)
       end
 
       def dead(table)

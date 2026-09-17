@@ -33,8 +33,37 @@ module SchemaReaper
       "ahoy_matey" => {
         "ahoy_visits" => %w[visit_token visitor_token],
         "ahoy_events" => %w[visit_id name properties]
+      },
+      "activeadmin" => {
+        "active_admin_comments" => %w[namespace body resource_type resource_id author_type author_id]
+      },
+      "devise-api" => {
+        "devise_api_tokens" => %w[
+          resource_owner_type resource_owner_id access_token refresh_token
+          expires_in revoked_at previous_refresh_token
+        ]
       }
     }.freeze
+
+    # Table names an installed gem creates and owns outright -- as opposed to
+    # columns a gem adds onto a table the app itself defines. DeadTable
+    # consults this: the static scanner only reads app code, so a table a
+    # gem's own internal classes reference (ActiveAdmin::Comment,
+    # Devise::Api::Token, FriendlyId::Slug, ...) looks unreferenced and gets
+    # suggested for `drop_table`, which for something like devise_api_tokens
+    # -- mobile session storage -- is actively destructive.
+    #
+    # Only exact table_glob entries qualify: a "*" entry means "this gem adds
+    # these columns to whatever table has them", not "this gem owns this
+    # table", so it says nothing about whole-table ownership.
+    def self.owned_tables(installed:)
+      installed = installed.to_set
+      MAP.each_with_object(Set.new) do |(gem_name, table_map), owned|
+        next unless installed.include?(gem_name)
+
+        table_map.each_key { |glob| owned << glob unless glob == "*" }
+      end
+    end
 
     # @param installed [Enumerable<String>] gem names present in the bundle
     # @param tables [Enumerable<#name,#column_names>] or Enumerable<String>
