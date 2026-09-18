@@ -71,6 +71,7 @@ module SchemaReaper
         return unless node.is_a?(Prism::Node)
 
         out.merge(tokens_for(node))
+        out.merge(macro_derived_tokens(node)) if node.is_a?(Prism::CallNode)
         node.compact_child_nodes.each { |c| collect_from_node(c, out) }
       end
 
@@ -80,8 +81,6 @@ module SchemaReaper
           [node.unescaped&.to_s&.downcase].compact
         when Prism::StringNode
           node.unescaped.to_s.scan(WORD_RE).map(&:downcase)
-        when Prism::CallNode
-          [node.name&.to_s&.downcase].compact + macro_derived_tokens(node)
         when *NAME_NODES
           name = node.respond_to?(:name) ? node.name : nil
           [name&.to_s&.downcase].compact
