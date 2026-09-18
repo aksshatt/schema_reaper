@@ -1,5 +1,35 @@
 # Changelog
 
+## [1.0.13] - 2026-09-18
+
+### Fixed
+- **Expression key columns were silently dropped from an index's column
+  list.** `indexes_for` joined `pg_index.indkey` entries against
+  `pg_attribute` by `attnum`; an expression column's `indkey` entry is
+  `0`, which matches no real column, so the join dropped it instead of
+  erroring. An index on `((data ->> 'type')), ((data ->> 'id')), user_id,
+  created_at` came back as just `user_id,created_at`, which then made a
+  plain index on `:user_id` look like a genuine leading-edge duplicate of
+  a key it was not actually a prefix of -- `duplicate_index` recommended
+  dropping an index that ordinary `WHERE user_id = ?` lookups depended
+  on. Rewritten to use `pg_get_indexdef(indexrelid, column_no, pretty)`,
+  which is keyed by column position rather than table attnum and renders
+  a plain column and an expression the same way. Also switched the
+  internal column separator from `,` to a control byte, since an
+  expression can legitimately contain a comma (`COALESCE(a, b)`) that a
+  comma-delimited split would have cut in half. (#9, mitkush)
+- **A table a gem creates and owns outright could be reported as dead.**
+  `dead_table` never consulted `GemAwareness`, so a table only ever
+  referenced through a gem's own internal classes -- never named in app
+  code -- looked exactly like real dead weight. Confirmed on a real app:
+  all of that app's `dead_table` findings were gem-owned tables
+  (`active_admin_comments`, `devise_api_tokens`, `friendly_id_slugs`),
+  and `drop_table :devise_api_tokens` would have deleted its mobile
+  session storage. `GemAwareness.owned_tables` now feeds `dead_table` the
+  same way it already fed the `dead_column` exemption. Also added
+  `activeadmin` and `devise-api` to the gem map, verified against each
+  gem's own migration template. (#10, mitkush)
+
 ## [1.0.12] - 2026-09-15
 
 ### Fixed
