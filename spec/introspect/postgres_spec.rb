@@ -37,12 +37,34 @@ RSpec.describe SchemaReaper::Introspect::Postgres do
           group_id bigint NOT NULL,
           PRIMARY KEY (group_id, user_id)
         );
+
+        DROP TABLE IF EXISTS schema_reaper_expr_idx;
+        -- Two expression key columns ahead of a plain one. pg_index.indkey
+        -- stores 0 for an expression position; joining that against
+        -- pg_attribute by attnum matches nothing, so the naive approach
+        -- silently drops both expressions and reports this index as just
+        -- (user_id). A bare index on :user_id then looks like a covered
+        -- duplicate of a key it is not actually a prefix of.
+        CREATE TABLE schema_reaper_expr_idx (
+          id bigserial PRIMARY KEY,
+          data jsonb,
+          read_at timestamp,
+          created_at timestamp,
+          user_id bigint
+        );
+        CREATE INDEX idx_expr_then_user
+          ON schema_reaper_expr_idx (
+            (COALESCE(read_at, created_at)), (data ->> 'kind'), user_id
+          );
+        CREATE INDEX idx_user_only
+          ON schema_reaper_expr_idx (user_id);
       SQL
     end
 
     after(:all) do
       @conn&.exec("DROP TABLE IF EXISTS schema_reaper_idx_order")
       @conn&.exec("DROP TABLE IF EXISTS schema_reaper_composite_pk")
+      @conn&.exec("DROP TABLE IF EXISTS schema_reaper_expr_idx")
       @conn&.close
     end
 
@@ -73,6 +95,30 @@ RSpec.describe SchemaReaper::Introspect::Postgres do
 
       expect(table.primary_key_columns).to eq(%w[group_id user_id])
       expect(table.primary_key?("user_id")).to be(true)
+    end
+
+    def expr_index_named(name)
+      table = described_class.new(db_url).call.tables.find { |t| t.name == "schema_reaper_expr_idx" }
+      table.indexes.find { |i| i.name == name }
+    end
+
+    it "renders expression key columns instead of dropping them" do
+      columns = expr_index_named("idx_expr_then_user").columns
+      expect(columns.length).to eq(3)
+      expect(columns[0]).to include("COALESCE")
+      expect(columns[1]).to include("data ->>")
+      expect(columns[2]).to eq("user_id")
+    end
+
+    it "splits a comma inside an expression as part of that expression, not as a column boundary" do
+      expect(expr_index_named("idx_expr_then_user").columns[0]).to include("read_at, created_at")
+    end
+
+    it "does not treat a plain index as covered by one whose leading columns are expressions" do
+      expr_led = expr_index_named("idx_expr_then_user")
+      user_only = expr_index_named("idx_user_only")
+
+      expect(expr_led.covers?(user_only)).to be(false)
     end
   end
 end

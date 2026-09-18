@@ -16,6 +16,12 @@ module SchemaReaper
                "database_url: in .schema_reaper.yml; the DATABASE_URL env var; " \
                "config/database.yml for RAILS_ENV (default: development, Postgres only)."
 
+      # A record separator that cannot appear inside a plain identifier and is
+      # exceedingly unlikely inside an expression, so splitting the aggregated
+      # column list back apart in Ruby cannot be fooled by a comma the
+      # expression itself contains: COALESCE(a, b), ROUND(x, 2), etc.
+      COLUMN_SEPARATOR = 31.chr
+
       def initialize(url)
         require "pg" # load first so the PG::Error rescue below can resolve
         raise Error, NO_URL if url.nil? || url.empty?
@@ -96,23 +102,34 @@ module SchemaReaper
 
       # Columns must come back in index-key order, not table order: prefix
       # comparisons (Index#covers?) are only meaningful on the real key order.
-      # unnest(indkey) WITH ORDINALITY preserves that; ORDER BY attnum does not.
+      #
+      # pg_get_indexdef(indexrelid, column_no, pretty) is keyed by column
+      # *position* (1..indnkeyatts), not by table attnum, so it renders a
+      # plain column and an expression column uniformly. The previous query
+      # joined each indkey entry against pg_attribute by attnum; an expression
+      # column's indkey entry is 0, which matches no real column, so the join
+      # silently dropped it -- an index on (COALESCE(a, b), c) came back as
+      # just "c", which then looked like a genuine duplicate of any ordinary
+      # index on :c. indnkeyatts also excludes INCLUDE columns, which are
+      # payload only and never participate in Index#covers?'s prefix check.
       def indexes_for(table)
         exec(<<~SQL, [table]).map do |r|
           SELECT i.relname AS name, ix.indisunique AS "unique", ix.indisprimary AS "primary",
                  s.idx_scan AS scans,
-                 array_to_string(array_agg(a.attname ORDER BY k.ord), ',') AS cols
+                 array_to_string(
+                   array_agg(pg_get_indexdef(ix.indexrelid, k.ord::int, true) ORDER BY k.ord),
+                   '#{COLUMN_SEPARATOR}'
+                 ) AS cols
           FROM pg_class t
           JOIN pg_index ix ON t.oid = ix.indrelid
           JOIN pg_class i ON i.oid = ix.indexrelid
-          JOIN LATERAL unnest(ix.indkey::int2[]) WITH ORDINALITY AS k(attnum, ord) ON TRUE
-          JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = k.attnum
+          JOIN LATERAL generate_series(1, ix.indnkeyatts) AS k(ord) ON TRUE
           LEFT JOIN pg_stat_user_indexes s ON s.indexrelid = i.oid
           WHERE t.relname = $1
           GROUP BY i.relname, ix.indisunique, ix.indisprimary, s.idx_scan
         SQL
           Index.new(
-            name: r["name"], columns: r["cols"].split(","),
+            name: r["name"], columns: r["cols"].split(COLUMN_SEPARATOR),
             unique: r["unique"] == "t", primary: r["primary"] == "t",
             scans: r["scans"]&.to_i
           )
