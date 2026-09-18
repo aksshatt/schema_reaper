@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.0.15] - 2026-09-18
+
+### Fixed
+- **`dead_column` still missed the two gems its own macro-detection feature
+  named as motivation.** 1.0.14 added recognition for `has_secure_password`,
+  `attr_encrypted`, and Lockbox macro columns, but only the first actually
+  worked. `attr_encrypted`'s real default column naming is a *prefix*
+  (`encrypted_<attr>`), confirmed against the gem's own
+  `attr_encrypted_default_options`; the feature generated a suffix guess
+  that never matched it. Lockbox's real macro is `has_encrypted`; the
+  feature checked for `lockbox_encrypts`, which is not a method that
+  exists in the gem, so it never even fired for genuine Lockbox code.
+  Rewritten as a macro-name -> column-template table so each macro's real
+  naming shape is expressed explicitly, and dropped an unnecessary
+  suffix guess for Rails' native `encrypts` (which stores ciphertext in
+  the original column and creates no extra one). Eight new specs cover
+  all four macros -- this had no test coverage before. (#15, mitkush)
+
 ## [1.0.14] - 2026-09-18
 
 Published directly without a version-bump commit or tag; this entry
