@@ -12,6 +12,16 @@ module SchemaReaper
       RUBY_GLOB  = "**/*.rb"
       WORD_RE    = /[a-z_][a-z0-9_]*/i.freeze
 
+      # Macros that generate a real column from a differently-named virtual
+      # attribute, so the literal column name never appears in application
+      # code. Missing this made dead_column flag has_secure_password's
+      # password_digest, and attr_encrypted/Lockbox/KMS ciphertext columns,
+      # as unused even though they're the live backing store.
+      DIGEST_MACROS = %w[has_secure_password].freeze
+      DIGEST_SUFFIXES = %w[_digest].freeze
+      ENCRYPTED_MACROS = %w[encrypts attr_encrypted lockbox_encrypts].freeze
+      ENCRYPTED_SUFFIXES = %w[_ciphertext _iv _tag _encrypted].freeze
+
       # Node classes whose #name (or #unescaped) is a bare identifier we treat
       # as a possible column/table reference.
       NAME_NODES = [
@@ -61,6 +71,7 @@ module SchemaReaper
         return unless node.is_a?(Prism::Node)
 
         out.merge(tokens_for(node))
+        out.merge(macro_derived_tokens(node)) if node.is_a?(Prism::CallNode)
         node.compact_child_nodes.each { |c| collect_from_node(c, out) }
       end
 
@@ -76,6 +87,34 @@ module SchemaReaper
         else
           []
         end
+      end
+
+      # `has_secure_password` / `encrypts :field` / `attr_encrypted :field`
+      # never write their generated column name (password_digest,
+      # field_ciphertext, ...) anywhere in source -- only the virtual
+      # attribute name. Derive the column names a macro call implies so they
+      # count as "used" instead of looking dead.
+      def macro_derived_tokens(node)
+        call_name = node.name&.to_s
+        return [] unless call_name
+
+        if DIGEST_MACROS.include?(call_name)
+          attrs = macro_symbol_args(node)
+          attrs = ["password"] if attrs.empty?
+          attrs.flat_map { |a| DIGEST_SUFFIXES.map { |s| "#{a}#{s}" } }
+        elsif ENCRYPTED_MACROS.include?(call_name)
+          macro_symbol_args(node).flat_map { |a| ENCRYPTED_SUFFIXES.map { |s| "#{a}#{s}" } }
+        else
+          []
+        end
+      end
+
+      # Leading bare symbol arguments of a call, e.g. `encrypts :a, :b, purpose: :x`
+      # => ["a", "b"]. Stops at the first non-symbol (keyword args, etc).
+      def macro_symbol_args(node)
+        args = node.arguments&.arguments || []
+        args.take_while { |a| a.is_a?(Prism::SymbolNode) }
+            .map { |a| a.unescaped.to_s.downcase }
       end
 
       def text_tokens(path)

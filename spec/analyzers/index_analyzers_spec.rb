@@ -73,6 +73,92 @@ RSpec.describe "index analyzers" do
       )
       expect(findings(described_class, schema)).to be_empty
     end
+
+    it "flags a wider covering index even when the covering index is itself unique" do
+      # A unique composite index still serves prefix lookups on its leading
+      # columns, same as a non-unique one would -- the old code required the
+      # covering index to be non-unique, which missed this.
+      schema = fake_schema(
+        fake_table("memberships", columns: [{ name: "id" }],
+                                  indexes: [
+                                    { name: "idx_a_only", columns: %w[a] },
+                                    { name: "idx_a_b_unique", columns: %w[a b], unique: true }
+                                  ])
+      )
+      expect(findings(described_class, schema).map(&:index)).to eq(["idx_a_only"])
+    end
+
+    it "does not flag a unique index just because a wider non-unique index covers its columns" do
+      # unique(a, b) does not make a unique on its own; dropping a unique
+      # index on :a in favour of a wider non-unique one removes a data
+      # integrity guarantee the wider index cannot itself provide.
+      schema = fake_schema(
+        fake_table("users", columns: [{ name: "id" }],
+                            indexes: [
+                              { name: "index_users_on_email", columns: %w[email], unique: true },
+                              { name: "index_users_on_email_and_created_at", columns: %w[email created_at] }
+                            ])
+      )
+      expect(findings(described_class, schema)).to be_empty
+    end
+
+    describe "two indexes with identical column lists" do
+      it "flags the non-unique one and keeps the unique one" do
+        schema = fake_schema(
+          fake_table("activities", columns: [{ name: "id" }],
+                                   indexes: [
+                                     { name: "index_activities_on_recordable", columns: %w[type id] },
+                                     { name: "index_activities_on_recordable_unique", columns: %w[type id],
+                                       unique: true }
+                                   ])
+        )
+        result = findings(described_class, schema)
+        expect(result.map(&:index)).to eq(["index_activities_on_recordable"])
+        expect(result.first.evidence.first).to include("duplicates")
+      end
+
+      it "flags exactly one when neither is unique, never both" do
+        # Comparing them pairwise with no tie-break would have each flag the
+        # other -- applying both suggested fixes would drop the column pair
+        # entirely. A deterministic survivor prevents that.
+        schema = fake_schema(
+          fake_table("t", columns: [{ name: "id" }],
+                          indexes: [
+                            { name: "idx_b_first", columns: %w[a b] },
+                            { name: "idx_a_first", columns: %w[a b] }
+                          ])
+        )
+        expect(findings(described_class, schema).map(&:index)).to eq(["idx_b_first"])
+      end
+    end
+
+    describe "a partial index" do
+      it "is never treated as covering another index" do
+        # A conditional unique index (e.g. `unique: true, where: "active"`)
+        # only guarantees uniqueness for matching rows; a full index on the
+        # same columns still has real work to do outside that condition.
+        schema = fake_schema(
+          fake_table("cohorts", columns: [{ name: "id" }],
+                                indexes: [
+                                  { name: "index_cohorts_on_status", columns: %w[status] },
+                                  { name: "index_cohorts_on_one_open_at_a_time", columns: %w[status],
+                                    unique: true, partial: true }
+                                ])
+        )
+        expect(findings(described_class, schema)).to be_empty
+      end
+
+      it "is never itself flagged as redundant" do
+        schema = fake_schema(
+          fake_table("notifications", columns: [{ name: "id" }],
+                                      indexes: [
+                                        { name: "idx_partial", columns: %w[user_id created_at], partial: true },
+                                        { name: "idx_full", columns: %w[user_id created_at] }
+                                      ])
+        )
+        expect(findings(described_class, schema)).to be_empty
+      end
+    end
   end
 
   describe SchemaReaper::Analyzers::MissingFkIndex do

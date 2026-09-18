@@ -32,6 +32,7 @@ def fake_index(attrs)
     columns: Array(attrs.fetch(:columns)),
     unique: attrs.fetch(:unique, false),
     primary: attrs.fetch(:primary, false),
+    partial: attrs.fetch(:partial, false),
     scans: attrs[:scans]
   )
 end

@@ -19,9 +19,17 @@ module SchemaReaper
     end
   end
 
-  Index = Struct.new(:name, :columns, :unique, :primary, :scans, keyword_init: true) do
+  Index = Struct.new(:name, :columns, :unique, :primary, :scans, :partial, keyword_init: true) do
     def covers?(other)
       columns.first(other.columns.length) == other.columns
+    end
+
+    # A partial index only exists for rows matching its WHERE clause, so it
+    # cannot stand in for a full index for rows outside that condition.
+    # comparing WHERE clauses for implication is out of scope here, so a
+    # partial index is simply never treated as covering another.
+    def partial?
+      !!partial
     end
   end
 
