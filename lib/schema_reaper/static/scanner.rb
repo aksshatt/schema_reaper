@@ -12,15 +12,37 @@ module SchemaReaper
       RUBY_GLOB  = "**/*.rb"
       WORD_RE    = /[a-z_][a-z0-9_]*/i.freeze
 
-      # Macros that generate a real column from a differently-named virtual
-      # attribute, so the literal column name never appears in application
-      # code. Missing this made dead_column flag has_secure_password's
-      # password_digest, and attr_encrypted/Lockbox/KMS ciphertext columns,
-      # as unused even though they're the live backing store.
-      DIGEST_MACROS = %w[has_secure_password].freeze
-      DIGEST_SUFFIXES = %w[_digest].freeze
-      ENCRYPTED_MACROS = %w[encrypts attr_encrypted lockbox_encrypts].freeze
-      ENCRYPTED_SUFFIXES = %w[_ciphertext _iv _tag _encrypted].freeze
+      # Macros whose generated column name differs from the virtual attribute
+      # declared in the call, so the real column name never appears anywhere
+      # in application code and would otherwise look dead. %s is replaced with
+      # the declared attribute.
+      #
+      # Several shapes are listed for some macros on purpose: getting the real
+      # default right matters most, but an extra guess that never matches a
+      # real column is harmless -- over-collecting is this scanner's stated
+      # design, and both attr_encrypted and Lockbox let a call override their
+      # naming, which a static scan cannot always evaluate.
+      #
+      # attr_encrypted's own default is a PREFIX (encrypted_<attr>), not a
+      # suffix -- confirmed against the gem's own attr_encrypted_default_options
+      # (prefix: "encrypted_", suffix: ""). The suffix form is kept as a
+      # fallback for calls that override it.
+      #
+      # Lockbox's real macro is has_encrypted, not lockbox_encrypts.
+      #
+      # Rails' own `encrypts` has no entry: it stores ciphertext in the
+      # original column, so the bare attribute name is what needs to be
+      # "used", and that is already picked up as a symbol literal by
+      # tokens_for below -- do not add a suffix pattern for it.
+      MACRO_COLUMN_TEMPLATES = {
+        "has_secure_password" => ["%s_digest"],
+        "attr_encrypted" => ["encrypted_%s", "%s_encrypted", "%s_ciphertext"],
+        "has_encrypted" => ["%s_ciphertext", "%s_iv", "%s_tag"]
+      }.freeze
+
+      # The attribute a macro implies when called with no explicit name, e.g.
+      # bare `has_secure_password` -> :password.
+      MACRO_DEFAULT_ATTR = { "has_secure_password" => "password" }.freeze
 
       # Node classes whose #name (or #unescaped) is a bare identifier we treat
       # as a possible column/table reference.
@@ -89,24 +111,14 @@ module SchemaReaper
         end
       end
 
-      # `has_secure_password` / `encrypts :field` / `attr_encrypted :field`
-      # never write their generated column name (password_digest,
-      # field_ciphertext, ...) anywhere in source -- only the virtual
-      # attribute name. Derive the column names a macro call implies so they
-      # count as "used" instead of looking dead.
       def macro_derived_tokens(node)
         call_name = node.name&.to_s
-        return [] unless call_name
+        templates = call_name && MACRO_COLUMN_TEMPLATES[call_name]
+        return [] unless templates
 
-        if DIGEST_MACROS.include?(call_name)
-          attrs = macro_symbol_args(node)
-          attrs = ["password"] if attrs.empty?
-          attrs.flat_map { |a| DIGEST_SUFFIXES.map { |s| "#{a}#{s}" } }
-        elsif ENCRYPTED_MACROS.include?(call_name)
-          macro_symbol_args(node).flat_map { |a| ENCRYPTED_SUFFIXES.map { |s| "#{a}#{s}" } }
-        else
-          []
-        end
+        attrs = macro_symbol_args(node)
+        attrs = [MACRO_DEFAULT_ATTR[call_name]].compact if attrs.empty?
+        attrs.product(templates).map { |attr, template| format(template, attr) }
       end
 
       # Leading bare symbol arguments of a call, e.g. `encrypts :a, :b, purpose: :x`
