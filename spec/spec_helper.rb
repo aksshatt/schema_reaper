@@ -53,12 +53,13 @@ def runtime_report(accessed: [], observed_days: 0)
   )
 end
 
-def context_for(schema:, used: [], runtime: nil, gem_columns: {}, config: nil)
+def context_for(schema:, used: [], runtime: nil, gem_columns: {}, gem_owned_tables: Set.new, config: nil)
   SchemaReaper::Analyzers::Context.new(
     schema: schema,
     used_tokens: used.to_set,
     runtime: runtime,
     gem_columns: gem_columns,
+    gem_owned_tables: gem_owned_tables,
     config: config || SchemaReaper::Config.new(SchemaReaper::Config::DEFAULTS.dup)
   )
 end

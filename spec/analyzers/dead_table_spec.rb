@@ -1,11 +1,11 @@
 # frozen_string_literal: true
 
 RSpec.describe SchemaReaper::Analyzers::DeadTable do
-  def findings(table_name, used:, row_count: 0)
+  def findings(table_name, used:, row_count: 0, gem_owned_tables: Set.new)
     schema = fake_schema(
       fake_table(table_name, row_count: row_count, columns: [{ name: "id" }])
     )
-    described_class.new(context_for(schema: schema, used: used)).call
+    described_class.new(context_for(schema: schema, used: used, gem_owned_tables: gem_owned_tables)).call
   end
 
   it "flags a table nothing references" do
@@ -66,6 +66,21 @@ RSpec.describe SchemaReaper::Analyzers::DeadTable do
 
     it "does not match a name that is only a substring of one segment" do
       expect(findings("logs", used: %w[catalogs]).map(&:table)).to eq(["logs"])
+    end
+  end
+
+  describe "tables a gem owns outright" do
+    it "does not flag a table the static scanner would otherwise call dead" do
+      # No app code ever mentions active_admin_comments directly -- ActiveAdmin's
+      # own internal classes read and write it, which the static scanner cannot
+      # see at all.
+      expect(findings("active_admin_comments", used: [], gem_owned_tables: Set["active_admin_comments"]))
+        .to be_empty
+    end
+
+    it "still flags an app table with the same shape of reference gap" do
+      expect(findings("legacy_imports", used: [], gem_owned_tables: Set["active_admin_comments"]).map(&:table))
+        .to eq(["legacy_imports"])
     end
   end
 end

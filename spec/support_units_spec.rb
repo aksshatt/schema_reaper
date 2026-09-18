@@ -130,5 +130,17 @@ RSpec.describe "supporting units" do
       expect(reserved["versions"]).to include("whodunnit")
       expect(reserved["orders"]).to be_empty
     end
+
+    it "names tables a gem owns outright, but not tables it only adds columns to" do
+      owned = described_class.owned_tables(installed: %w[activeadmin devise-api devise])
+      expect(owned).to include("active_admin_comments", "devise_api_tokens")
+      # devise's own entry is a "*" glob (columns added onto whatever table has
+      # them, e.g. users) -- it does not own any specific table outright.
+      expect(owned).not_to include("*")
+    end
+
+    it "names nothing for a gem that is not installed" do
+      expect(described_class.owned_tables(installed: %w[devise])).to be_empty
+    end
   end
 end
