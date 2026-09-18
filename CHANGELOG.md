@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.0.14] - 2026-09-18
+
+Published directly without a version-bump commit or tag; this entry
+reconciles the record after the fact. Confirmed by diffing the
+published gem against `main` at the time -- the only difference was the
+version string.
+
+### Fixed
+- `duplicate_index` respecting uniqueness and partial `WHERE` clauses --
+  see 1.0.13's entry for the underlying issue; this release adds the fix.
+  (#12, mitkush)
+- `dead_column` missing `has_secure_password`, `encrypts`, and
+  `attr_encrypted` macro columns -- a virtual attribute like
+  `has_secure_password` never has its generated column name
+  (`password_digest`) written anywhere in application code, so it looked
+  unreferenced. (aksshatt)
+
+### Known issue
+- The `attr_encrypted`/Lockbox part of the macro-column fix above does
+  not work as intended: it derives a suffix-based column name
+  (`<attr>_encrypted`) that does not match `attr_encrypted`'s actual
+  default naming (`encrypted_<attr>`, a prefix), and it references a
+  `lockbox_encrypts` macro name that does not exist in Lockbox -- the
+  gem's real method is `has_encrypted`. `has_secure_password` and Rails'
+  native `encrypts` are unaffected and work correctly. Tracked for 1.0.15.
+
 ## [1.0.13] - 2026-09-18
 
 ### Fixed
