@@ -50,8 +50,12 @@ module SchemaReaper
       parts.empty? ? nil : parts.join(" · ")
     end
 
+    # Keeps the raw (possibly nil) reclaimable_bytes from Struct#to_h rather
+    # than the zero-defaulted accessor above, so JSON/SARIF consumers can tell
+    # "genuinely zero" apart from "unknown" the same way every other reporter
+    # does -- reclaim_known? makes that distinction explicit in the payload.
     def to_h
-      super.merge(id: id, reclaimable_bytes: reclaimable_bytes)
+      super.merge(id: id, reclaim_known: reclaim_known?)
     end
   end
 end
