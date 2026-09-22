@@ -31,6 +31,14 @@ RSpec.describe SchemaReaper::Introspect::Postgres do
 
       expect(introspector.send(:primary_key_for, "ghost_table")).to be_nil
     end
+
+    it "wraps a real connection failure as SchemaReaper::Error, not a raw PG::ConnectionBad" do
+      # A genuinely refused connection (port 1: nothing listens there, so it
+      # fails instantly -- no live test database needed, and no risk of a
+      # slow/hanging spec from an unreachable host).
+      expect { described_class.new("postgres://localhost:1/nonexistent?connect_timeout=1") }
+        .to raise_error(SchemaReaper::Error, /could not connect to the database/)
+    end
   end
 
   url = ENV.fetch("SCHEMA_REAPER_TEST_DATABASE_URL", nil)
