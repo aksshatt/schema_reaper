@@ -1,0 +1,159 @@
+# frozen_string_literal: true
+
+require "tmpdir"
+require "fileutils"
+require "generators/schema_reaper/install/install_generator"
+
+RSpec.describe SchemaReaper::Generators::InstallGenerator do
+  def build_generator(destination)
+    generator = described_class.new
+    generator.destination_root = destination
+    generator
+  end
+
+  around do |example|
+    Dir.mktmpdir do |dir|
+      @destination = dir
+      FileUtils.mkdir_p(File.join(dir, "config"))
+      example.run
+    end
+  end
+
+  def read(relative_path)
+    File.read(File.join(@destination, relative_path))
+  end
+
+  def exist?(relative_path)
+    File.exist?(File.join(@destination, relative_path))
+  end
+
+  describe "#create_initializer" do
+    it "writes a commented-out AlertConfig block, safe by default" do
+      build_generator(@destination).create_initializer
+
+      content = read("config/initializers/schema_reaper.rb")
+      expect(content).to include("SchemaReaper::AlertConfig.configure do |config|")
+      expect(content).to include("# config.emails =")
+      expect(content).to include("# config.webhook_url =")
+    end
+  end
+
+  describe "#create_manual_trigger" do
+    it "writes the token-protected controller and adds the route" do
+      generator = build_generator(@destination)
+      File.write(File.join(@destination, "config/routes.rb"), "Rails.application.routes.draw do\nend\n")
+
+      generator.create_manual_trigger
+
+      controller = read("app/controllers/schema_reaper_controller.rb")
+      expect(controller).to include("class SchemaReaperController < ActionController::Base")
+      expect(controller).to include("SchemaReaper::ScanJob.perform_later")
+      expect(controller).to include("ActiveSupport::SecurityUtils.secure_compare")
+      expect(controller).to include("Rails.application.credentials.dig(:schema_reaper, :trigger_token)")
+
+      routes = read("config/routes.rb")
+      expect(routes).to include("post '/internal/schema_scan', to: 'schema_reaper#trigger'")
+    end
+  end
+
+  describe "#add_schedule" do
+    it "creates config/schedule.rb with a whenever entry when whenever is detected" do
+      generator = build_generator(@destination)
+      allow(generator).to receive(:detected_scheduler).and_return(:whenever)
+
+      generator.add_schedule
+
+      schedule = read("config/schedule.rb")
+      expect(schedule).to include("every 3.months do")
+      expect(schedule).to include('rake "schema_reaper:alert"')
+    end
+
+    it "appends to an existing config/schedule.rb rather than clobbering it" do
+      generator = build_generator(@destination)
+      allow(generator).to receive(:detected_scheduler).and_return(:whenever)
+      File.write(File.join(@destination, "config/schedule.rb"), "every 1.day do\n  runner \"Existing.task\"\nend\n")
+
+      generator.add_schedule
+
+      schedule = read("config/schedule.rb")
+      expect(schedule).to include("Existing.task")
+      expect(schedule).to include('rake "schema_reaper:alert"')
+    end
+
+    it "creates config/schedule.yml with a sidekiq-cron entry when sidekiq-cron is detected" do
+      generator = build_generator(@destination)
+      allow(generator).to receive(:detected_scheduler).and_return(:sidekiq_cron)
+
+      generator.add_schedule
+
+      schedule = read("config/schedule.yml")
+      expect(schedule).to include("schema_reaper_scan:")
+      expect(schedule).to include('class: "SchemaReaper::ScanJob"')
+    end
+
+    it "appends to an existing config/schedule.yml rather than clobbering it" do
+      generator = build_generator(@destination)
+      allow(generator).to receive(:detected_scheduler).and_return(:sidekiq_cron)
+      File.write(File.join(@destination, "config/schedule.yml"),
+                 "existing_job:\n  cron: \"0 0 * * *\"\n  class: \"Existing\"\n")
+
+      generator.add_schedule
+
+      schedule = read("config/schedule.yml")
+      expect(schedule).to include("existing_job:")
+      expect(schedule).to include("schema_reaper_scan:")
+    end
+
+    it "prints a manual-setup notice instead of guessing when neither scheduler is present" do
+      generator = build_generator(@destination)
+      allow(generator).to receive(:detected_scheduler).and_return(nil)
+
+      expect { generator.add_schedule }.to output(/no `whenever` or `sidekiq-cron` gem detected/).to_stdout
+      expect(exist?("config/schedule.rb")).to be false
+      expect(exist?("config/schedule.yml")).to be false
+    end
+  end
+
+  describe "#warn_if_dev_scoped" do
+    it "warns when the Gemfile scopes schema_reaper to group: :development" do
+      generator = build_generator(@destination)
+      File.write(File.join(@destination, "Gemfile"), "gem \"schema_reaper\", group: :development\n")
+
+      expect { generator.warn_if_dev_scoped }.to output(/will not run in production/).to_stdout
+    end
+
+    it "says nothing when the gem is not dev-scoped" do
+      generator = build_generator(@destination)
+      File.write(File.join(@destination, "Gemfile"), "gem \"schema_reaper\"\n")
+
+      expect { generator.warn_if_dev_scoped }.not_to output(/will not run in production/).to_stdout
+    end
+
+    it "says nothing when there is no Gemfile at all" do
+      generator = build_generator(@destination)
+      expect { generator.warn_if_dev_scoped }.not_to output(/will not run in production/).to_stdout
+    end
+  end
+
+  describe "#print_token_instructions" do
+    it "prints one token and reuses the exact same value in both the credentials snippet and the curl example" do
+      generator = build_generator(@destination)
+      output = capture_stdout { generator.print_token_instructions }
+
+      tokens = output.scan(/app-[0-9a-f]{64}/)
+      expect(tokens.uniq.size).to eq(1)
+      expect(output).to include("rails credentials:edit")
+      expect(output).to include("trigger_token: #{tokens.first}")
+      expect(output).to include("Authorization: Bearer #{tokens.first}")
+    end
+  end
+
+  def capture_stdout
+    original = $stdout
+    $stdout = StringIO.new
+    yield
+    $stdout.string
+  ensure
+    $stdout = original
+  end
+end

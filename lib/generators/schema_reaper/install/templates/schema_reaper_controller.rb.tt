@@ -1,0 +1,36 @@
+# frozen_string_literal: true
+
+# Manual, on-demand trigger for the production schema_reaper scan -- enqueues
+# the exact same job the schedule uses, so there is one code path to keep
+# correct. Protected by a bearer token stored in encrypted credentials
+# (config/credentials.yml.enc, key schema_reaper.trigger_token) rather than a
+# DevOps-provisioned ENV var -- every Rails app already has the
+# RAILS_MASTER_KEY needed to decrypt it, so this introduces zero new
+# production configuration.
+#
+# Trigger it with (the token is printed once by the install generator, and
+# also included in every scheduled report so whoever already receives the
+# routine report can re-trigger it):
+#
+#   curl -X POST https://your-app.example.com/internal/schema_scan \
+#     -H "Authorization: Bearer <token>"
+class SchemaReaperController < ActionController::Base
+  def trigger
+    return head(:unauthorized) unless token_valid?
+
+    SchemaReaper::ScanJob.perform_later
+    head :accepted
+  end
+
+  private
+
+  def token_valid?
+    expected = Rails.application.credentials.dig(:schema_reaper, :trigger_token)
+    return false if expected.blank?
+
+    provided = request.headers["Authorization"].to_s.delete_prefix("Bearer ").strip
+    return false if provided.empty?
+
+    ActiveSupport::SecurityUtils.secure_compare(provided, expected)
+  end
+end

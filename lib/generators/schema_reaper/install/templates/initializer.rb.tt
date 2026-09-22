@@ -1,0 +1,18 @@
+# frozen_string_literal: true
+
+# schema_reaper production automation.
+#
+# Neither of these is a secret -- leaking a teammate's email address or a
+# webhook URL isn't a meaningful security event -- so this file is meant to
+# be committed to git directly. The manual-trigger token is not: see the
+# instructions `rails generate schema_reaper:install` printed for that one
+# (it lives in Rails.application.credentials, not here).
+#
+# Uncomment and fill in at least one of these to start receiving reports.
+# Both fire on every scheduled run when both are set -- this isn't a
+# fallback, it's two audiences: a dev-facing chat channel and a formal inbox
+# record for people who don't watch chat.
+SchemaReaper::AlertConfig.configure do |config|
+  # config.emails = %w[dev1@example.com dev2@example.com]
+  # config.webhook_url = "https://hooks.slack.com/services/T000/B000/XXXX"
+end

@@ -47,6 +47,9 @@ Gem::Specification.new do |spec|
   spec.add_dependency "prism", ">= 0.19", "< 2.0"
   spec.add_dependency "thor", "~> 1.3"
 
+  spec.add_development_dependency "actionmailer", ">= 6.1", "< 9.0"
+  spec.add_development_dependency "activejob", ">= 6.1", "< 9.0"
   spec.add_development_dependency "activerecord", ">= 6.1", "< 9.0"
   spec.add_development_dependency "pg", "~> 1.5"
+  spec.add_development_dependency "railties", ">= 6.1", "< 9.0"
 end

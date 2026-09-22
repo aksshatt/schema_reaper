@@ -23,4 +23,9 @@ namespace :schema_reaper do
     history.record(findings)
     pp history.trend
   end
+
+  desc "Enqueue the production scan+alert job (this is what the scheduled cron entry calls)"
+  task alert: :environment do
+    SchemaReaper::ScanJob.perform_later
+  end
 end

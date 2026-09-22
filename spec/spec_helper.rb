@@ -1,5 +1,12 @@
 # frozen_string_literal: true
 
+# Loaded before schema_reaper so its ActiveJob-/ActionMailer-gated files
+# (ScanJob, Mailer -- see lib/schema_reaper.rb) actually get required. Both
+# guards are checked once, at this require, not per-spec.
+require "active_job"
+require "action_mailer"
+ActiveJob::Base.queue_adapter = :test
+
 require "schema_reaper"
 
 RSpec.configure do |config|

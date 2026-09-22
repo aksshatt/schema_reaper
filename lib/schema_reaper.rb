@@ -29,6 +29,10 @@ require_relative "schema_reaper/baseline"
 require_relative "schema_reaper/history"
 require_relative "schema_reaper/migration_generator"
 require_relative "schema_reaper/runner"
+require_relative "schema_reaper/alert_config"
+require_relative "schema_reaper/notifier"
+require_relative "schema_reaper/mailer" if defined?(ActionMailer::Base)
+require_relative "schema_reaper/scan_job" if defined?(ActiveJob::Base)
 require_relative "schema_reaper/railtie" if defined?(Rails::Railtie)
 
 # Finds columns, indexes and tables that a Rails/ActiveRecord app no longer
