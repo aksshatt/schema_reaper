@@ -5,6 +5,34 @@
 #
 #   SCHEMA_REAPER_TEST_DATABASE_URL=postgres://localhost/schema_reaper_test bundle exec rspec
 RSpec.describe SchemaReaper::Introspect::Postgres do
+  # No live database needed -- stubs the connection to exercise error
+  # wrapping without a real Postgres instance.
+  describe "query error handling" do
+    before { require "pg" }
+
+    def introspector_with(conn)
+      allow(PG).to receive(:connect).and_return(conn)
+      described_class.new("postgres://fake")
+    end
+
+    it "wraps a query-time PG::Error as SchemaReaper::Error instead of leaking it raw" do
+      conn = instance_double(PG::Connection)
+      allow(conn).to receive(:exec).and_raise(PG::Error, "relation does not exist")
+      introspector = introspector_with(conn)
+
+      expect { introspector.send(:exec, "SELECT 1") }
+        .to raise_error(SchemaReaper::Error, /query against the database failed/)
+    end
+
+    it "still falls back to nil when primary_key_for's query fails, now that exec wraps the error" do
+      conn = instance_double(PG::Connection)
+      allow(conn).to receive(:exec_params).and_raise(PG::Error, "no such relation")
+      introspector = introspector_with(conn)
+
+      expect(introspector.send(:primary_key_for, "ghost_table")).to be_nil
+    end
+  end
+
   url = ENV.fetch("SCHEMA_REAPER_TEST_DATABASE_URL", nil)
 
   if url.nil? || url.empty?

@@ -8,13 +8,12 @@ module SchemaReaper
       AVG_TYPE_BYTES = {
         "boolean" => 1, "smallint" => 2, "integer" => 4, "bigint" => 8,
         "real" => 4, "double precision" => 8, "numeric" => 8,
-        "date" => 4, "timestamp without time zone" => 8,
-        "timestamp with time zone" => 8, "uuid" => 16
+        "date" => 4, "timestamp without time zone" => 8, "timestamp with time zone" => 8, "uuid" => 16
       }.freeze
 
       NO_URL = "no database connection found. schema_reaper looks, in order, for: " \
-               "database_url: in .schema_reaper.yml; the DATABASE_URL env var; " \
-               "config/database.yml for RAILS_ENV (default: development, Postgres only)."
+               "database_url: in .schema_reaper.yml; the DATABASE_URL env var; config/database.yml " \
+               "for RAILS_ENV (default: development, Postgres only)."
 
       # A record separator that cannot appear inside a plain identifier and is
       # exceedingly unlikely inside an expression, so splitting the aggregated
@@ -142,7 +141,7 @@ module SchemaReaper
           WHERE i.indrelid = $1::regclass AND i.indisprimary
           ORDER BY k.ord
         SQL
-      rescue PG::Error
+      rescue Error, PG::Error
         nil
       end
 
@@ -172,6 +171,8 @@ module SchemaReaper
 
       def exec(sql, params = nil)
         (params ? @conn.exec_params(sql, params) : @conn.exec(sql)).to_a
+      rescue PG::Error => e
+        raise Error, "query against the database failed: #{e.message.strip}"
       end
     end
   end
