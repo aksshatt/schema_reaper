@@ -37,6 +37,19 @@ RSpec.describe SchemaReaper::Reporters::Trend do
     expect(out).to include("2026-08-01", "2026-09-09")
     expect(out).not_to include(":snapshots=>") # no raw hash dump
   end
+
+  it "shows an unsigned zero byte delta, not -0.0 B" do
+    out = render(
+      snapshots: 2,
+      first_at: "2026-08-01T10:00:00Z", last_at: "2026-09-09T10:00:00Z",
+      latest_count: 7, latest_bytes: 192_000,
+      count_change_total: 0, count_change_last: 0,
+      bytes_change_total: 0
+    )
+
+    expect(out).to include("+0.0 B since first run")
+    expect(out).not_to include("-0.0 B")
+  end
 end
 
 RSpec.describe SchemaReaper::Reporters::Console do

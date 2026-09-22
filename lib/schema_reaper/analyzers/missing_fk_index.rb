@@ -32,11 +32,15 @@ module SchemaReaper
 
       def missing_in(table)
         fk_columns(table).filter_map do |col|
-          next if indexed?(table, col)
-          next if empty_column?(table, col) # never advise indexing a column with no data
-
           type_col = polymorphic_type_for(table, col)
-          next if type_col && polymorphic_indexed?(table, type_col, col)
+
+          # A bare index on the id alone doesn't cover a polymorphic pair --
+          # only the composite (type, id) index satisfies it. Check that
+          # instead of the generic `indexed?`, or a bare id-only index would
+          # wrongly suppress this finding.
+          covered = type_col ? polymorphic_indexed?(table, type_col, col) : indexed?(table, col)
+          next if covered
+          next if empty_column?(table, col) # never advise indexing a column with no data
 
           finding_for(table, col, type_col, declared: table.foreign_keys.include?(col))
         end

@@ -47,7 +47,7 @@ module SchemaReaper
 
       def bytes
         delta = @d[:bytes_change_total].to_i
-        sign = delta.positive? ? "+" : "-"
+        sign = delta.negative? ? "-" : "+"
         @c.row("reclaimable", Bytes.human(@d.fetch(:latest_bytes, 0)),
                "#{sign}#{Bytes.human(delta.abs)} since first run")
       end
