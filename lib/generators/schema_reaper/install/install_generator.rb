@@ -20,7 +20,17 @@ module SchemaReaper
 
       def create_manual_trigger
         template "schema_reaper_controller.rb.tt", "app/controllers/schema_reaper_controller.rb"
-        route "post '/internal/schema_scan', to: 'schema_reaper#trigger'"
+
+        # `route` (unlike `template`/`create_file`) has no conflict
+        # detection of its own -- it unconditionally injects, so re-running
+        # this generator would duplicate the line every time without this
+        # guard.
+        routes_path = File.join(destination_root, "config/routes.rb")
+        if File.exist?(routes_path) && File.read(routes_path).include?("schema_reaper#trigger")
+          say_status :skip, "config/routes.rb already routes to schema_reaper#trigger -- not duplicating it", :yellow
+        else
+          route "post '/internal/schema_scan', to: 'schema_reaper#trigger'"
+        end
       end
 
       def add_schedule
@@ -84,14 +94,18 @@ module SchemaReaper
 
       def add_whenever_schedule
         path = "config/schedule.rb"
+        marker = 'rake "schema_reaper:alert"'
         entry = <<~RUBY
 
           every 3.months do
-            rake "schema_reaper:alert"
+            #{marker}
           end
         RUBY
 
-        if File.exist?(File.join(destination_root, path))
+        full_path = File.join(destination_root, path)
+        if File.exist?(full_path) && File.read(full_path).include?(marker)
+          say_status :skip, "#{path} already has a schema_reaper entry -- not duplicating it", :yellow
+        elsif File.exist?(full_path)
           append_to_file path, entry
         else
           # No `require "whenever"` here -- real wheneverize-generated files
@@ -103,16 +117,20 @@ module SchemaReaper
 
       def add_sidekiq_cron_schedule
         path = "config/schedule.yml"
+        marker = "schema_reaper_scan:"
         entry = <<~YAML
 
-          schema_reaper_scan:
+          #{marker}
             cron: "0 4 1 */3 *" # 4am on the 1st, every 3 months
             class: "SchemaReaper::ScanJob"
             queue: default
             active_job: true # explicit, not relying on class-ancestry auto-detection
         YAML
 
-        if File.exist?(File.join(destination_root, path))
+        full_path = File.join(destination_root, path)
+        if File.exist?(full_path) && File.read(full_path).include?(marker)
+          say_status :skip, "#{path} already has a schema_reaper_scan entry -- not duplicating it", :yellow
+        elsif File.exist?(full_path)
           append_to_file path, entry
         else
           create_file path, entry.sub("\n\n", "")

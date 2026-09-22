@@ -70,6 +70,17 @@ RSpec.describe SchemaReaper::Generators::InstallGenerator do
       controller = read("app/controllers/schema_reaper_controller.rb")
       expect(controller).to include("skip_before_action :verify_authenticity_token, raise: false")
     end
+
+    it "does not duplicate the route when the generator is re-run" do
+      generator = build_generator(@destination)
+      File.write(File.join(@destination, "config/routes.rb"), "Rails.application.routes.draw do\nend\n")
+
+      generator.create_manual_trigger
+      generator.create_manual_trigger
+
+      routes = read("config/routes.rb")
+      expect(routes.scan("schema_reaper#trigger").size).to eq(1)
+    end
   end
 
   describe "#detected_scheduler (real Bundler.locked_gems, not stubbed)" do
@@ -142,6 +153,17 @@ RSpec.describe SchemaReaper::Generators::InstallGenerator do
       expect(schedule).to include('rake "schema_reaper:alert"')
     end
 
+    it "does not duplicate the whenever entry when the generator is re-run" do
+      generator = build_generator(@destination)
+      allow(generator).to receive(:detected_scheduler).and_return(:whenever)
+
+      generator.add_schedule
+      generator.add_schedule # re-running the generator is a normal recovery action
+
+      schedule = read("config/schedule.rb")
+      expect(schedule.scan('rake "schema_reaper:alert"').size).to eq(1)
+    end
+
     it "creates config/schedule.yml with a sidekiq-cron entry when sidekiq-cron is detected" do
       generator = build_generator(@destination)
       allow(generator).to receive(:detected_scheduler).and_return(:sidekiq_cron)
@@ -167,6 +189,17 @@ RSpec.describe SchemaReaper::Generators::InstallGenerator do
       schedule = read("config/schedule.yml")
       expect(schedule).to include("existing_job:")
       expect(schedule).to include("schema_reaper_scan:")
+    end
+
+    it "does not duplicate the sidekiq-cron entry when the generator is re-run" do
+      generator = build_generator(@destination)
+      allow(generator).to receive(:detected_scheduler).and_return(:sidekiq_cron)
+
+      generator.add_schedule
+      generator.add_schedule
+
+      schedule = read("config/schedule.yml")
+      expect(schedule.scan("schema_reaper_scan:").size).to eq(1)
     end
 
     it "prints a manual-setup notice instead of guessing when neither scheduler is present" do
