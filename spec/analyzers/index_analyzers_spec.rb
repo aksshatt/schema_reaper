@@ -202,11 +202,20 @@ RSpec.describe "index analyzers" do
       expect(result.first.suggested_fix).to eq("add_index :comments, %i[commentable_type commentable_id]")
     end
 
-    it "does not accept an index on the id alone as covering a polymorphic pair" do
+    it "does not accept an index on the type alone as covering a polymorphic pair" do
       schema = fake_schema(
         fake_table("comments",
                    columns: [{ name: "id" }, { name: "commentable_type" }, { name: "commentable_id" }],
                    indexes: [{ name: "idx_type_only", columns: %w[commentable_type] }])
+      )
+      expect(findings(described_class, schema).map(&:column)).to eq(["commentable_id"])
+    end
+
+    it "does not accept a bare index on the id alone as covering a polymorphic pair" do
+      schema = fake_schema(
+        fake_table("comments",
+                   columns: [{ name: "id" }, { name: "commentable_type" }, { name: "commentable_id" }],
+                   indexes: [{ name: "idx_id_only", columns: %w[commentable_id] }])
       )
       expect(findings(described_class, schema).map(&:column)).to eq(["commentable_id"])
     end

@@ -34,4 +34,12 @@ RSpec.describe SchemaReaper::MigrationGenerator do
       expect(File.read(path)).to include("ActiveRecord::Migration[#{expected}]")
     end
   end
+
+  it "singularizes an irregular plural table name in the model reference" do
+    Dir.mktmpdir do |dir|
+      path = described_class.new(table: "addresses", column: "old", dir: dir).call.first
+      expect(File.read(path)).to include("Address model")
+      expect(File.read(path)).not_to include("Addresse model")
+    end
+  end
 end

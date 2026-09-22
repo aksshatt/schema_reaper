@@ -5,6 +5,14 @@ require "fileutils"
 module SchemaReaper
   # Emits a two-step, reversible migration pair for a dead column.
   class MigrationGenerator
+    # Enough of Rails' inflector for table names in this comment text -- a
+    # wrong guess doesn't break anything functional, just reads oddly.
+    SINGULAR_RULES = [
+      [/ies\z/, "y"],               # activities -> activity
+      [/(ss|sh|ch|x|z)es\z/, '\1'], # addresses  -> address, boxes -> box
+      [/s\z/, ""]                   # employees  -> employee
+    ].freeze
+
     def initialize(table:, column:, dir: "db/migrate")
       @table = table
       @column = column
@@ -77,7 +85,12 @@ module SchemaReaper
     end
 
     def model
-      @table.split("_").map(&:capitalize).join.sub(/s$/, "")
+      singular.split("_").map(&:capitalize).join
+    end
+
+    def singular
+      rule = SINGULAR_RULES.find { |pattern, _| @table.match?(pattern) }
+      rule ? @table.sub(rule[0], rule[1]) : @table
     end
   end
 end

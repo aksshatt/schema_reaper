@@ -119,7 +119,7 @@ module SchemaReaper
           JOIN pg_class i ON i.oid = ix.indexrelid
           JOIN LATERAL generate_series(1, ix.indnkeyatts) AS k(ord) ON TRUE
           LEFT JOIN pg_stat_user_indexes s ON s.indexrelid = i.oid
-          WHERE t.relname = $1
+          WHERE t.relname = $1 AND t.relnamespace = 'public'::regnamespace
           GROUP BY i.relname, ix.indisunique, ix.indisprimary, ix.indpred, s.idx_scan
         SQL
           Index.new(
