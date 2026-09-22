@@ -19,7 +19,7 @@ RSpec.describe SchemaReaper::Notifier do
   end
 
   describe "webhook delivery" do
-    let(:http_client) { instance_double(Net::HTTP, "use_ssl=": nil, request: nil) }
+    let(:http_client) { instance_double(Net::HTTP, "use_ssl=": nil, "open_timeout=": nil, "read_timeout=": nil, request: nil) }
     let(:http) { class_double(Net::HTTP, new: http_client) }
 
     before { config.webhook_url = "https://hooks.slack.com/services/T000/B000/XXXX" }
@@ -33,6 +33,13 @@ RSpec.describe SchemaReaper::Notifier do
         body = JSON.parse(req.body)
         expect(body["text"]).to include("dead_column", "users", "legacy")
       end
+    end
+
+    it "bounds the wait instead of letting a dead webhook host hang the job indefinitely" do
+      described_class.new([finding], config: config, http: http).deliver
+
+      expect(http_client).to have_received(:open_timeout=).with(10)
+      expect(http_client).to have_received(:read_timeout=).with(10)
     end
 
     it "logs and swallows a delivery failure instead of raising" do
@@ -82,7 +89,7 @@ RSpec.describe SchemaReaper::Notifier do
   it "fires both channels when both are configured" do
     config.webhook_url = "https://hooks.slack.com/services/T000/B000/XXXX"
     config.emails = ["dev@example.com"]
-    http_client = instance_double(Net::HTTP, "use_ssl=": nil, request: nil)
+    http_client = instance_double(Net::HTTP, "use_ssl=": nil, "open_timeout=": nil, "read_timeout=": nil, request: nil)
     http = class_double(Net::HTTP, new: http_client)
     mail_message = instance_double(ActionMailer::MessageDelivery, deliver_later: true)
     mailer = class_double("SchemaReaper::Mailer", report_email: mail_message)

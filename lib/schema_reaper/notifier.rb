@@ -55,6 +55,11 @@ module SchemaReaper
 
       client = @http.new(uri.host, uri.port)
       client.use_ssl = uri.scheme == "https"
+      # A background job blocking indefinitely on a dead webhook host would
+      # back up the queue behind it -- bound the wait instead of relying on
+      # Net::HTTP's own (version-dependent) defaults.
+      client.open_timeout = 10
+      client.read_timeout = 10
       client.request(request)
     rescue StandardError => e
       log_error("webhook delivery failed", e)

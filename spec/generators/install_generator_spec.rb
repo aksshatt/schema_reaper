@@ -50,9 +50,25 @@ RSpec.describe SchemaReaper::Generators::InstallGenerator do
       expect(controller).to include("SchemaReaper::ScanJob.perform_later")
       expect(controller).to include("ActiveSupport::SecurityUtils.secure_compare")
       expect(controller).to include("Rails.application.credentials.dig(:schema_reaper, :trigger_token)")
+      expect(controller).to include("ActiveSupport::EncryptedFile::MissingKeyError")
 
       routes = read("config/routes.rb")
       expect(routes).to include("post '/internal/schema_scan', to: 'schema_reaper#trigger'")
+    end
+
+    it "skips CSRF verification so a bare curl POST is not rejected by every standard Rails app" do
+      # ActionController::Base itself gets `protect_from_forgery with: :exception`
+      # wired onto it by Rails' own action_controller.request_forgery_protection
+      # initializer whenever default_protect_from_forgery is on (the default since
+      # Rails 5.2) -- every subclass inherits that before_action, this one
+      # included, unless it explicitly opts out.
+      generator = build_generator(@destination)
+      File.write(File.join(@destination, "config/routes.rb"), "Rails.application.routes.draw do\nend\n")
+
+      generator.create_manual_trigger
+
+      controller = read("app/controllers/schema_reaper_controller.rb")
+      expect(controller).to include("skip_before_action :verify_authenticity_token, raise: false")
     end
   end
 
@@ -66,6 +82,10 @@ RSpec.describe SchemaReaper::Generators::InstallGenerator do
       schedule = read("config/schedule.rb")
       expect(schedule).to include("every 3.months do")
       expect(schedule).to include('rake "schema_reaper:alert"')
+      # Real wheneverize-generated files never have this -- whenever's CLI
+      # evaluates schedule.rb through its own DSL, it doesn't need the file
+      # to require itself.
+      expect(schedule).not_to include('require "whenever"')
     end
 
     it "appends to an existing config/schedule.rb rather than clobbering it" do
@@ -89,6 +109,9 @@ RSpec.describe SchemaReaper::Generators::InstallGenerator do
       schedule = read("config/schedule.yml")
       expect(schedule).to include("schema_reaper_scan:")
       expect(schedule).to include('class: "SchemaReaper::ScanJob"')
+      # Explicit rather than relying on sidekiq-cron's ActiveJob
+      # ancestry auto-detection.
+      expect(schedule).to include("active_job: true")
     end
 
     it "appends to an existing config/schedule.yml rather than clobbering it" do
@@ -118,6 +141,21 @@ RSpec.describe SchemaReaper::Generators::InstallGenerator do
     it "warns when the Gemfile scopes schema_reaper to group: :development" do
       generator = build_generator(@destination)
       File.write(File.join(@destination, "Gemfile"), "gem \"schema_reaper\", group: :development\n")
+
+      expect { generator.warn_if_dev_scoped }.to output(/will not run in production/).to_stdout
+    end
+
+    it "warns for the block form too, not just the inline group: form" do
+      # The gem's own line never mentions :development in this style -- the
+      # `group :development do` line above it does. A naive per-line regex
+      # misses this entirely, and it's the more common style in practice.
+      generator = build_generator(@destination)
+      File.write(File.join(@destination, "Gemfile"), <<~RUBY)
+        source "https://rubygems.org"
+        group :development do
+          gem "schema_reaper"
+        end
+      RUBY
 
       expect { generator.warn_if_dev_scoped }.to output(/will not run in production/).to_stdout
     end

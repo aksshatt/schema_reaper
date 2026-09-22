@@ -94,7 +94,10 @@ module SchemaReaper
         if File.exist?(File.join(destination_root, path))
           append_to_file path, entry
         else
-          create_file path, "require \"whenever\"\n#{entry}"
+          # No `require "whenever"` here -- real wheneverize-generated files
+          # don't have one; whenever's own CLI evaluates this file through
+          # its DSL, not as a plain script that needs to load itself.
+          create_file path, entry.sub("\n\n", "")
         end
       end
 
@@ -106,6 +109,7 @@ module SchemaReaper
             cron: "0 4 1 */3 *" # 4am on the 1st, every 3 months
             class: "SchemaReaper::ScanJob"
             queue: default
+            active_job: true # explicit, not relying on class-ancestry auto-detection
         YAML
 
         if File.exist?(File.join(destination_root, path))
@@ -115,18 +119,26 @@ module SchemaReaper
         end
       end
 
-      # `gem "schema_reaper", group: :development` in the app's own Gemfile
+      # `gem "schema_reaper", group: :development` (or the equivalent
+      # `group :development do ... end` block form) in the app's own Gemfile
       # -- see README's current install snippet. A dev-scoped gem is absent
       # from `bundle install --without development test`, which most
       # production deploy pipelines run, so the scheduled scan silently
       # never runs.
+      #
+      # Parsed with Bundler's own DSL rather than line-scanning for
+      # "group: :development" -- a regex over raw lines misses the block
+      # form entirely (the gem's own line never mentions :development; the
+      # `group :development do` line above it does), and that block form is
+      # the more common style in practice, not an edge case.
       def gemfile_scopes_schema_reaper_to_dev?
         gemfile = File.join(destination_root, "Gemfile")
         return false unless File.exist?(gemfile)
 
-        File.readlines(gemfile).any? do |line|
-          line.match?(/gem\s+["']schema_reaper["']/) && line.include?(":development")
-        end
+        dep = Bundler::Dsl.evaluate(gemfile, nil, {}).dependencies.find { |d| d.name == "schema_reaper" }
+        dep && !dep.groups.include?(:default)
+      rescue StandardError
+        false # a Gemfile we can't parse shouldn't block the rest of the generator
       end
 
       def app_identifier
