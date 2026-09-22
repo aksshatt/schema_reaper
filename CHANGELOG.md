@@ -1,5 +1,45 @@
 # Changelog
 
+## [1.0.16] - 2026-09-22
+
+### Fixed
+- **A bare index on a polymorphic `*_id` column alone silently suppressed the
+  `missing_fk_index` finding it should have raised.** The check tested the
+  generic "is this column indexed at all" before checking whether the column
+  was part of a polymorphic pair, so an index on `commentable_id` by itself
+  — never sufficient, since Rails always queries the pair together — read as
+  "covered" and the analyzer's own doc comment went unenforced. Now gates on
+  the composite `(type, id)` check whenever a `*_type` column is present.
+  (#17, mitkush)
+- **`Postgres#indexes_for` was the one introspection query missing the
+  `public`-schema filter** every sibling query (`columns_for`,
+  `foreign_keys_for`, `table_names`) already has. In a database with more
+  than one schema containing a same-named table, it could pull in and union
+  indexes from the wrong table. Verified live against a two-schema database
+  with a colliding table name and a planted bogus index. (#17, mitkush)
+- **The `SCHEMA_REAPER_TRACK=1` runtime-tracker initializer could crash a
+  host app's entire boot**, not just disable the optional feature, on a
+  malformed `.schema_reaper.yml` or an unwritable log directory — nothing
+  in the initializer was rescued. Now rescues and logs a warning instead.
+  (#18, mitkush)
+- **`schema_reaper scan --format json` could not distinguish a genuinely
+  zero-byte reclaim estimate from an unmeasured one.** `Finding#to_h` read
+  the zero-defaulted accessor instead of the raw value, silently flattening
+  "unknown" into `0` for every CI/tooling consumer of the JSON output, even
+  though every other reporter already preserves that distinction. The
+  payload now carries the raw value plus an explicit `reclaim_known` flag.
+  Verified live: an unmeasured finding now serializes `reclaimable_bytes`
+  as `null` with `reclaim_known: false`. (#18, mitkush)
+- **A query-time Postgres error (anything past the initial connection)
+  propagated as a raw `PG::Error`** instead of the wrapped `SchemaReaper::Error`
+  every other failure path produces, leaking a Ruby backtrace instead of a
+  clean CLI error message. `primary_key_for`'s existing fallback-to-nil
+  rescue is updated to match. (#18, mitkush)
+- Cosmetic: `MigrationGenerator#model` mangled irregular plural table names
+  (`addresses` → "Addresse") in the generated migration's comment text;
+  `Reporters::Trend#bytes` printed `-0.0 B` instead of `+0.0 B` for a zero
+  delta. (#17, mitkush)
+
 ## [1.0.15] - 2026-09-18
 
 ### Fixed
