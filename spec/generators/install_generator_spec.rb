@@ -72,6 +72,48 @@ RSpec.describe SchemaReaper::Generators::InstallGenerator do
     end
   end
 
+  describe "#detected_scheduler (real Bundler.locked_gems, not stubbed)" do
+    # Every other #add_schedule example stubs detected_scheduler directly,
+    # which never exercises the actual Bundler.locked_gems parsing this
+    # method does. Test that for real here.
+    it "returns nil in this gem's own bundle, which has neither whenever nor sidekiq-cron" do
+      generator = build_generator(@destination)
+      expect(generator.send(:detected_scheduler)).to be_nil
+    end
+
+    it "detects whenever from a real-shaped Bundler.locked_gems result" do
+      generator = build_generator(@destination)
+      fake_spec = Struct.new(:name).new("whenever")
+      fake_locked_gems = instance_double(Bundler::LockfileParser, specs: [fake_spec])
+      allow(Bundler).to receive(:locked_gems).and_return(fake_locked_gems)
+
+      expect(generator.send(:detected_scheduler)).to eq(:whenever)
+    end
+
+    it "detects sidekiq-cron from a real-shaped Bundler.locked_gems result" do
+      generator = build_generator(@destination)
+      fake_spec = Struct.new(:name).new("sidekiq-cron")
+      fake_locked_gems = instance_double(Bundler::LockfileParser, specs: [fake_spec])
+      allow(Bundler).to receive(:locked_gems).and_return(fake_locked_gems)
+
+      expect(generator.send(:detected_scheduler)).to eq(:sidekiq_cron)
+    end
+
+    it "does not crash when Bundler.locked_gems returns nil (no Gemfile.lock yet)" do
+      generator = build_generator(@destination)
+      allow(Bundler).to receive(:locked_gems).and_return(nil)
+
+      expect(generator.send(:detected_scheduler)).to be_nil
+    end
+
+    it "does not crash when Bundler.locked_gems itself raises" do
+      generator = build_generator(@destination)
+      allow(Bundler).to receive(:locked_gems).and_raise(Bundler::GemfileNotFound)
+
+      expect(generator.send(:detected_scheduler)).to be_nil
+    end
+  end
+
   describe "#add_schedule" do
     it "creates config/schedule.rb with a whenever entry when whenever is detected" do
       generator = build_generator(@destination)
@@ -169,6 +211,14 @@ RSpec.describe SchemaReaper::Generators::InstallGenerator do
 
     it "says nothing when there is no Gemfile at all" do
       generator = build_generator(@destination)
+      expect { generator.warn_if_dev_scoped }.not_to output(/will not run in production/).to_stdout
+    end
+
+    it "does not crash the generator when the Gemfile can't be parsed" do
+      generator = build_generator(@destination)
+      File.write(File.join(@destination, "Gemfile"), "this is not { valid ruby (((")
+
+      expect { generator.warn_if_dev_scoped }.not_to raise_error
       expect { generator.warn_if_dev_scoped }.not_to output(/will not run in production/).to_stdout
     end
   end

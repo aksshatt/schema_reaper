@@ -1,5 +1,11 @@
 # frozen_string_literal: true
 
+require "simplecov"
+SimpleCov.start do
+  add_filter "/spec/"
+  enable_coverage :branch
+end
+
 # Loaded before schema_reaper so its ActiveJob-/ActionMailer-gated files
 # (ScanJob, Mailer -- see lib/schema_reaper.rb) actually get required. Both
 # guards are checked once, at this require, not per-spec.

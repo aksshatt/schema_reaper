@@ -18,6 +18,23 @@ RSpec.describe SchemaReaper::Notifier do
     end
   end
 
+  it "auto-detects the real SchemaReaper::Mailer when mailer: is not given at all" do
+    config.emails = ["dev@example.com"]
+    notifier = described_class.new([finding], config: config)
+
+    expect(notifier.send(:instance_variable_get, :@mailer)).to eq(SchemaReaper::Mailer)
+  end
+
+  it "logs through Rails.logger instead of warn when a real Rails logger is present" do
+    logger = instance_double(Logger, error: nil)
+    allow(Rails).to receive(:logger).and_return(logger)
+    config.emails = ["dev@example.com"]
+
+    described_class.new([finding], config: config, mailer: nil).deliver
+
+    expect(logger).to have_received(:error).with(/email delivery skipped/)
+  end
+
   describe "webhook delivery" do
     let(:http_client) { instance_double(Net::HTTP, "use_ssl=": nil, "open_timeout=": nil, "read_timeout=": nil, request: nil) }
     let(:http) { class_double(Net::HTTP, new: http_client) }

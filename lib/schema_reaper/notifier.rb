@@ -17,11 +17,16 @@ module SchemaReaper
   # Delivery failures are logged, never raised -- a webhook endpoint being
   # briefly down should not fail the scan job or retry-storm it.
   class Notifier
-    def initialize(findings, config: AlertConfig.instance, http: Net::HTTP, mailer: nil)
+    # `mailer:` defaults to :auto rather than nil so an explicit
+    # `mailer: nil` (forcing "no mailer available", e.g. to test that path,
+    # or because a caller genuinely wants email delivery skipped) is
+    # respected rather than silently falling back to the auto-detected
+    # SchemaReaper::Mailer via `||`.
+    def initialize(findings, config: AlertConfig.instance, http: Net::HTTP, mailer: :auto)
       @findings = findings
       @config = config
       @http = http
-      @mailer = mailer || (defined?(Mailer) ? Mailer : nil)
+      @mailer = mailer == :auto ? default_mailer : mailer
     end
 
     def deliver
@@ -32,6 +37,10 @@ module SchemaReaper
     end
 
     private
+
+    def default_mailer
+      defined?(Mailer) ? Mailer : nil
+    end
 
     def report_text
       @report_text ||= begin
