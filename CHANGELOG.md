@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [2.0.1] - 2026-09-23
 
 ### Fixed
 - **Report emails now use the app's `ApplicationMailer`.** `SchemaReaper::Mailer`
@@ -36,6 +36,11 @@
   Documents the `pg` requirement, that only the `public` schema is scanned, and
   that lists in `.schema_reaper.yml` replace their defaults, and what
   `min_age_days` controls.
+- The `automation`, `safety` and `ci` section diagrams carry label text meant
+  to be read, so they no longer loop a fade in/out -- the reveal plays once
+  and holds the finished frame, instead of pulling attention away from the
+  text every 12s. The safety timeline's progress line keeps a continuous
+  moving-dash accent once grown in, since that's motion, not text.
 
 ## [2.0.0] - 2026-09-23
 
