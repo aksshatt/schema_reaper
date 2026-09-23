@@ -3,36 +3,30 @@
   <title id="title">The CI baseline gate</title>
   <desc id="desc">On each pull request, schema_reaper scan --ci compares the findings with the committed baseline.json. It passes when every finding is already in the baseline and exits 1 when the change adds new dead weight.</desc>
   <style>
+    .pop { opacity: 0; animation: pop .5s ease-out forwards; }
     .flow { stroke-dasharray: 6 6; animation: flow 1.2s linear infinite; }
     .pulse { animation: pulse 2.4s ease-in-out 1.2s infinite; transform-box: fill-box; transform-origin: center; }
-    .grow { transform-box: fill-box; transform-origin: left center; }
-    .strike { stroke-dasharray: 200; }
-    .scan { opacity: 0; }
+    .grow { transform: scaleX(0); transform-box: fill-box; transform-origin: left center;
+            animation: grow 2.2s cubic-bezier(.4,0,.2,1) .9s forwards; }
+    @keyframes pop { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
     @keyframes flow { to { stroke-dashoffset: -12; } }
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
-    @keyframes blink { 50% { opacity: 0; } }
-    @keyframes ae14561 { 0% { opacity:0;transform:translateY(6px);animation-timing-function:step-end } 0.00% { opacity:0;transform:translateY(6px);animation-timing-function:ease-out } 4.17% { opacity:1;transform:none } 91.67% { opacity:1;transform:none;animation-timing-function:ease-in } 96.25% { opacity:0;transform:translateY(6px) } 100% { opacity:0;transform:translateY(6px) } }
-    .ae14561 { animation: ae14561 12s linear infinite; }
-    @keyframes ae14562 { 0% { opacity:0;transform:translateY(6px);animation-timing-function:step-end } 1.67% { opacity:0;transform:translateY(6px);animation-timing-function:ease-out } 5.83% { opacity:1;transform:none } 91.67% { opacity:1;transform:none;animation-timing-function:ease-in } 96.25% { opacity:0;transform:translateY(6px) } 100% { opacity:0;transform:translateY(6px) } }
-    .ae14562 { animation: ae14562 12s linear infinite; }
-    @keyframes ae14563 { 0% { opacity:0;transform:translateY(6px);animation-timing-function:step-end } 3.33% { opacity:0;transform:translateY(6px);animation-timing-function:ease-out } 7.50% { opacity:1;transform:none } 91.67% { opacity:1;transform:none;animation-timing-function:ease-in } 96.25% { opacity:0;transform:translateY(6px) } 100% { opacity:0;transform:translateY(6px) } }
-    .ae14563 { animation: ae14563 12s linear infinite; }
-    @keyframes ae14564 { 0% { opacity:0;transform:translateY(6px);animation-timing-function:step-end } 5.42% { opacity:0;transform:translateY(6px);animation-timing-function:ease-out } 9.58% { opacity:1;transform:none } 91.67% { opacity:1;transform:none;animation-timing-function:ease-in } 96.25% { opacity:0;transform:translateY(6px) } 100% { opacity:0;transform:translateY(6px) } }
-    .ae14564 { animation: ae14564 12s linear infinite; }
-    @keyframes ae14565 { 0% { opacity:0;transform:translateY(6px);animation-timing-function:step-end } 6.67% { opacity:0;transform:translateY(6px);animation-timing-function:ease-out } 10.83% { opacity:1;transform:none } 91.67% { opacity:1;transform:none;animation-timing-function:ease-in } 96.25% { opacity:0;transform:translateY(6px) } 100% { opacity:0;transform:translateY(6px) } }
-    .ae14565 { animation: ae14565 12s linear infinite; }
-    @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+    @keyframes grow { to { transform: scaleX(1); } }
+    @media (prefers-reduced-motion: reduce) {
+      .pop { animation: none; opacity: 1; } .flow, .pulse { animation: none; }
+      .grow { animation: none; transform: none; }
+    }
   </style>
 <path class="flow" d="M200 100 C 225.0 100, 225.0 100, 250 100" fill="none" stroke="#cc342d" stroke-width="2" stroke-opacity=".75"/>
 <path class="flow" d="M530 100 C 560.0 100, 560.0 100, 590 100" fill="none" stroke="#cc342d" stroke-width="2" stroke-opacity=".75"/>
 <path class="flow" d="M790 100 C 810.0 100, 810.0 45, 830 45" fill="none" stroke="#1a7f37" stroke-width="2" stroke-opacity=".75"/>
 <path class="flow" d="M790 100 C 810.0 100, 810.0 155, 830 155" fill="none" stroke="#cf222e" stroke-width="2" stroke-opacity=".75"/>
-<g class="pop ae14561"><rect x="20" y="65" width="180" height="70" rx="12" fill="#f6f8fa" stroke="#d0d7de"/><text x="36" y="96" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="15" font-weight="600" fill="#1f2328">Pull request</text><text x="36" y="116" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="12.5" fill="#59636e">adds or changes code</text></g>
-<g class="pop ae14562"><rect x="250" y="65" width="280" height="70" rx="12" fill="#f6f8fa" stroke="#d0d7de"/><text x="266" y="96" font-family="ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,'Liberation Mono',monospace" font-size="13.5" font-weight="600" fill="#1f2328">schema_reaper scan --ci</text><text x="266" y="116" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="12.5" fill="#59636e">--format sarif &gt; reaper.sarif</text></g>
-<g class="pop ae14563">
+<g class="pop" style="animation-delay:0.00s"><rect x="20" y="65" width="180" height="70" rx="12" fill="#f6f8fa" stroke="#d0d7de"/><text x="36" y="96" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="15" font-weight="600" fill="#1f2328">Pull request</text><text x="36" y="116" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="12.5" fill="#59636e">adds or changes code</text></g>
+<g class="pop" style="animation-delay:0.20s"><rect x="250" y="65" width="280" height="70" rx="12" fill="#f6f8fa" stroke="#d0d7de"/><text x="266" y="96" font-family="ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,'Liberation Mono',monospace" font-size="13.5" font-weight="600" fill="#1f2328">schema_reaper scan --ci</text><text x="266" y="116" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="12.5" fill="#59636e">--format sarif &gt; reaper.sarif</text></g>
+<g class="pop" style="animation-delay:.4s">
       <rect class="pulse" x="590" y="60" width="200" height="80" rx="14" fill="#fff1f0" stroke="#cc342d" stroke-width="1.5"/>
       <text x="606" y="93" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="15" font-weight="700" fill="#1f2328">compare with</text>
       <text x="606" y="116" font-family="ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,'Liberation Mono',monospace" font-size="13" fill="#1f2328">baseline.json</text></g>
-<g class="pop ae14564"><rect x="830" y="12" width="160" height="66" rx="12" fill="#dafbe1" stroke="#1a7f37"/><text x="846" y="41" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="15" font-weight="600" fill="#1f2328">✓ passes</text><text x="846" y="61" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="12.5" fill="#59636e">only known findings</text></g>
-<g class="pop ae14565"><rect x="830" y="122" width="160" height="66" rx="12" fill="#ffebe9" stroke="#cf222e"/><text x="846" y="151" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="15" font-weight="600" fill="#1f2328">✗ exit 1</text><text x="846" y="171" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="12.5" fill="#59636e">new dead weight</text></g>
+<g class="pop" style="animation-delay:0.65s"><rect x="830" y="12" width="160" height="66" rx="12" fill="#dafbe1" stroke="#1a7f37"/><text x="846" y="41" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="15" font-weight="600" fill="#1f2328">✓ passes</text><text x="846" y="61" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="12.5" fill="#59636e">only known findings</text></g>
+<g class="pop" style="animation-delay:0.80s"><rect x="830" y="122" width="160" height="66" rx="12" fill="#ffebe9" stroke="#cf222e"/><text x="846" y="151" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="15" font-weight="600" fill="#1f2328">✗ exit 1</text><text x="846" y="171" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="12.5" fill="#59636e">new dead weight</text></g>
 </svg>

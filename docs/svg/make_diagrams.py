@@ -40,6 +40,8 @@ STYLE = """
 
 
 def svg(name, w, h, title, desc, body):
+    """Looped: reveals, then holds -- fades out and back in every cycle. Use
+    for diagrams that are glanced at, not read line by line."""
     with open(os.path.join(OUT, name), "w") as f:
         f.write(loopify(f'''<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}" role="img"
      aria-labelledby="title desc">
@@ -48,6 +50,20 @@ def svg(name, w, h, title, desc, body):
 {body}
 </svg>
 ''', 12))
+
+
+def svg_static(name, w, h, title, desc, body):
+    """Plays the reveal once, then holds the finished frame forever -- no
+    repeat fade-out. Use for diagrams carrying label text meant to be read:
+    a looped fade makes labels vanish mid-read whenever the cycle turns over."""
+    with open(os.path.join(OUT, name), "w") as f:
+        f.write(f'''<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}" role="img"
+     aria-labelledby="title desc">
+  <title id="title">{escape(title)}</title>
+  <desc id="desc">{escape(desc)}</desc>{STYLE}
+{body}
+</svg>
+''')
 
 
 def box(t, x, y, w, h, title, sub=None, delay=0.0, fill=None, stroke=None, mono_title=False, dash=False, cls="pop"):
@@ -124,7 +140,7 @@ for theme, t in THEMES.items():
     parts.append(f'<text class="pop" style="animation-delay:.9s" x="20" y="322" font-family="{SANS}" font-size="12" '
                  f'fill="{t["sub"]}">default schedule: quarterly  ·  manual trigger: bearer token, 5-minute cooldown  ·  '
                  f'delivery failures are logged, never raised</text>')
-    svg(f"automation-{theme}.svg", W, H, "How production automation runs",
+    svg_static(f"automation-{theme}.svg", W, H, "How production automation runs",
         "whenever or cron runs rake schema_reaper:alert, sidekiq-cron enqueues the job directly, and the "
         "token-protected manual trigger POST /internal/schema_scan enqueues it on demand. All three run "
         "SchemaReaper::ScanJob, which scans the live database and your code; the Notifier then sends the "
@@ -155,7 +171,7 @@ for theme, t in THEMES.items():
     parts.append(f'''<g class="pop" style="animation-delay:2.1s">
       <rect x="760" y="{y0 + 68}" width="180" height="28" rx="14" fill="{t['badbg']}"/>
       <text x="850" y="{y0 + 87}" text-anchor="middle" font-family="{SANS}" font-size="13" font-weight="600" fill="{t['bad']}">only after the soak</text></g>''')
-    svg(f"safety-{theme}.svg", W, H, "The staged removal path",
+    svg_static(f"safety-{theme}.svg", W, H, "The staged removal path",
         "generate-migration writes two migrations. Step 1 adds the column to ignored_columns and is deployed; "
         "nothing is dropped. Once it has soaked in production and nothing reads the column, step 2 runs "
         "remove_column, which is irreversible.",
@@ -174,7 +190,7 @@ for theme, t in THEMES.items():
       <text x="606" y="116" font-family="{MONO}" font-size="13" fill="{t['text']}">baseline.json</text></g>''')
     parts.append(box(t, 830, 12, 160, 66, "✓ passes", "only known findings", delay=.65, fill=t["okbg"], stroke=t["ok"]))
     parts.append(box(t, 830, 122, 160, 66, "✗ exit 1", "new dead weight", delay=.8, fill=t["badbg"], stroke=t["bad"]))
-    svg(f"ci-{theme}.svg", W, H, "The CI baseline gate",
+    svg_static(f"ci-{theme}.svg", W, H, "The CI baseline gate",
         "On each pull request, schema_reaper scan --ci compares the findings with the committed "
         "baseline.json. It passes when every finding is already in the baseline and exits 1 when the change "
         "adds new dead weight.",
