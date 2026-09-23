@@ -1,5 +1,29 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- **Report emails now use the app's `ApplicationMailer`.** `SchemaReaper::Mailer`
+  was defined while the gem loaded (`Bundler.require`), before the app's
+  autoloader could see `app/mailers/application_mailer.rb`, so it always
+  inherited `ActionMailer::Base` and sent from the `schema_reaper@localhost`
+  placeholder -- which most SMTP relays reject. It is now autoloaded on first
+  use, after boot. The install generator's `from:` check now also accepts
+  `config.action_mailer.default_options` for apps without an
+  `ApplicationMailer`. 2.0.0 workaround: add
+  `SchemaReaper::Mailer.default from: "..."` to the initializer.
+- **`rake schema_reaper:alert` no longer silently drops the scan on the
+  `:async` ActiveJob adapter** (the default before Rails 8). The job ran on a
+  thread inside the rake process, which exited first -- so the whenever and
+  plain-cron schedules never scanned. The task now runs the scan inline (with
+  email delivered immediately) when the adapter is `:async`, and enqueues as
+  before otherwise.
+
+### Changed
+- README rewritten around a quickstart, with animated SVG illustrations
+  (`docs/assets/`, excluded from the packaged gem) and corrected details on
+  scheduling, the manual trigger's cooldown, CI and gem awareness.
+
 ## [2.0.0] - 2026-09-23
 
 ### Added
