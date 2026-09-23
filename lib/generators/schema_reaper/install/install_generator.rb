@@ -53,6 +53,18 @@ module SchemaReaper
                    :red
       end
 
+      def warn_if_no_mailer_from
+        return if mailer_from_configured?
+
+        say_status :warning,
+                   "no ApplicationMailer default `from:` detected. SchemaReaper::Mailer falls back to a " \
+                   "placeholder sender in that case, which most real SMTP relays reject or spam-flag -- " \
+                   "email reports would silently fail to arrive. If you plan to use the email channel " \
+                   "(config.emails in the initializer this generator just wrote), set " \
+                   "`default from: \"...\"` on ApplicationMailer first.",
+                   :red
+      end
+
       def print_token_instructions
         token = "#{app_identifier}-#{SecureRandom.hex(32)}"
 
@@ -157,6 +169,19 @@ module SchemaReaper
         dep && !dep.groups.include?(:default)
       rescue StandardError
         false # a Gemfile we can't parse shouldn't block the rest of the generator
+      end
+
+      # Checked against ApplicationMailer specifically, not SchemaReaper::Mailer
+      # -- at generate time the app is already booted (ActionMailer, and
+      # ApplicationMailer if the app has one, are loaded), so this reads the
+      # same `default_params[:from]` chain SchemaReaper::Mailer itself will
+      # inherit from once it's loaded.
+      def mailer_from_configured?
+        return false unless defined?(::ApplicationMailer) # no mailer to inherit from at all
+
+        ::ApplicationMailer.default_params[:from].present?
+      rescue StandardError
+        true # can't determine -- don't nag over something we're unsure about
       end
 
       def app_identifier

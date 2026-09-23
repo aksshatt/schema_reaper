@@ -71,6 +71,18 @@ RSpec.describe SchemaReaper::Generators::InstallGenerator do
       expect(controller).to include("skip_before_action :verify_authenticity_token, raise: false")
     end
 
+    it "generates a shared-cooldown guard against repeated/leaked-token triggers stacking up scans" do
+      generator = build_generator(@destination)
+      File.write(File.join(@destination, "config/routes.rb"), "Rails.application.routes.draw do\nend\n")
+
+      generator.create_manual_trigger
+
+      controller = read("app/controllers/schema_reaper_controller.rb")
+      expect(controller).to include("Rails.cache.write(\"schema_reaper:manual_trigger_lock\"")
+      expect(controller).to include("unless_exist: true")
+      expect(controller).to include("head(:too_many_requests) unless acquire_trigger_lock")
+    end
+
     it "does not duplicate the route when the generator is re-run" do
       generator = build_generator(@destination)
       File.write(File.join(@destination, "config/routes.rb"), "Rails.application.routes.draw do\nend\n")
@@ -253,6 +265,30 @@ RSpec.describe SchemaReaper::Generators::InstallGenerator do
 
       expect { generator.warn_if_dev_scoped }.not_to raise_error
       expect { generator.warn_if_dev_scoped }.not_to output(/will not run in production/).to_stdout
+    end
+  end
+
+  describe "#warn_if_no_mailer_from" do
+    after { Object.send(:remove_const, :ApplicationMailer) if defined?(ApplicationMailer) }
+
+    it "warns when there is no ApplicationMailer at all (this suite's own default state)" do
+      generator = build_generator(@destination)
+      expect { generator.warn_if_no_mailer_from }.to output(/no ApplicationMailer default `from:` detected/).to_stdout
+    end
+
+    it "warns when ApplicationMailer exists but sets no default from:" do
+      Object.const_set(:ApplicationMailer, Class.new(ActionMailer::Base))
+      generator = build_generator(@destination)
+
+      expect { generator.warn_if_no_mailer_from }.to output(/no ApplicationMailer default `from:` detected/).to_stdout
+    end
+
+    it "says nothing when ApplicationMailer sets a default from:" do
+      mailer = Class.new(ActionMailer::Base) { default from: "noreply@example.com" }
+      Object.const_set(:ApplicationMailer, mailer)
+      generator = build_generator(@destination)
+
+      expect { generator.warn_if_no_mailer_from }.not_to output(/no ApplicationMailer default/).to_stdout
     end
   end
 

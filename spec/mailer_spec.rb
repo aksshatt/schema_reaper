@@ -21,4 +21,17 @@ RSpec.describe SchemaReaper::Mailer do
     expect(mail.subject).to eq("[schema_reaper] scan report")
     expect(mail.body.encoded).to include("No findings")
   end
+
+  # Without a from address, mail() raises "SMTP From address may not be
+  # blank" -- and critically, that happens inside the background job when it
+  # actually renders the message (deliver_later only enqueues), not inside
+  # Notifier#deliver_email's rescue. An app with no ApplicationMailer, which
+  # is exactly this spec's own environment, hits this path for real.
+  it "falls back to a placeholder from: address so delivery does not raise when no ApplicationMailer sets one" do
+    expect(described_class.default_params[:from]).to be_present
+
+    expect do
+      described_class.report_email(to: ["dev@example.com"], report: "x").deliver_now
+    end.not_to raise_error
+  end
 end

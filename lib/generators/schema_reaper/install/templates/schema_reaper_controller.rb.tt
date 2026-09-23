@@ -8,9 +8,11 @@
 # RAILS_MASTER_KEY needed to decrypt it, so this introduces zero new
 # production configuration.
 #
-# Trigger it with (the token is printed once by the install generator, and
-# also included in every scheduled report so whoever already receives the
-# routine report can re-trigger it):
+# Trigger it with (the token is printed once by the install generator --
+# store it somewhere your team can find it, e.g. a password manager. It is
+# deliberately NOT embedded in the scheduled report itself: that report goes
+# to Slack/email, and a bearer token that authorizes a production action
+# doesn't belong in either):
 #
 #   curl -X POST https://your-app.example.com/internal/schema_scan \
 #     -H "Authorization: Bearer <token>"
@@ -27,14 +29,29 @@ class SchemaReaperController < ActionController::Base
   # defaults, so every subclass inherits it, this one included.
   skip_before_action :verify_authenticity_token, raise: false
 
+  # A valid (or leaked) token could otherwise be POSTed repeatedly, each hit
+  # enqueueing a full schema introspection against production. This is not
+  # per-caller rate limiting -- it's a single shared cooldown so a burst of
+  # triggers (accidental double-click, a leaked token being hammered) can't
+  # stack up scans faster than they can plausibly be useful. Rails.cache is
+  # whatever the app already has configured; on the default NullStore (no
+  # caching configured at all) this is a no-op, same as before this guard
+  # existed -- configure a real cache store to get actual protection.
+  TRIGGER_COOLDOWN = 5.minutes
+
   def trigger
     return head(:unauthorized) unless token_valid?
+    return head(:too_many_requests) unless acquire_trigger_lock
 
     SchemaReaper::ScanJob.perform_later
     head :accepted
   end
 
   private
+
+  def acquire_trigger_lock
+    Rails.cache.write("schema_reaper:manual_trigger_lock", true, unless_exist: true, expires_in: TRIGGER_COOLDOWN)
+  end
 
   def token_valid?
     expected = Rails.application.credentials.dig(:schema_reaper, :trigger_token)
