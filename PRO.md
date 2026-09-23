@@ -24,7 +24,7 @@ work that only pays off at scale and that individuals rarely need.
 | History / trend | local JSONL + `trend` | hosted timeline, burndown charts, per-team dashboards |
 | Baseline gate | one file | per-branch baselines, ownership routing (CODEOWNERS) |
 | Multi-database / shards | one DB per run | fan-out across N databases, divergence report |
-| Scheduled scans + alerts | — | ✅ (cron runner, "queue breached", "new dead column in `billing`") |
+| Scheduled scans + alerts | ✅ self-hosted (`rails g schema_reaper:install`: whenever/sidekiq-cron + webhook/email) | ✅ hosted, zero-install + native Slack/Jira routing + per-team alert rules |
 | Mountable dashboard engine | — | ✅ `mount SchemaReaper::Pro::Engine` |
 | SSO, audit log, RBAC | — | ✅ (Enterprise) |
 | Support | GitHub issues, best effort | private issues, SLA |
@@ -59,7 +59,7 @@ team-scale.
 | Tier | Who | Price | Limits |
 |---|---|---|---|
 | **Solo Pro** | 1 dev, unlimited personal/side projects | $9 / mo ($90 / yr) | 3 databases |
-| **Team** | up to 10 devs | $49 / mo ($490 / yr) | 15 databases, Slack/Jira, scheduled scans |
+| **Team** | up to 10 devs | $49 / mo ($490 / yr) | 15 databases, Slack/Jira, hosted scheduled scans |
 | **Business** | up to 50 devs | $199 / mo | unlimited databases, dashboard engine, priority support |
 | **Enterprise** | 50+ / regulated | custom (from ~$12k / yr) | SSO, audit log, RBAC, on-prem license server, SLA |
 
@@ -82,10 +82,15 @@ scheduler + a web app.
 1. **Now**: Sponsor button, `PRO.md`, "Pro" section in README (waitlist link).
 2. **v1.1 (OSS)**: MySQL adapter groundwork, real size math — proves demand,
    some lands free.
-3. **Pro 0.1**: private gem = MySQL + Slack reporter + scheduled scans + license
-   key. Sell to the first 10 teams at half price for feedback.
-4. **Pro 0.2**: dashboard engine, multi-DB fan-out, per-branch baselines.
-5. **SaaS beta**: once ~25 paying teams self-host.
+3. **v2.0 (OSS, shipped)**: self-hosted scheduled scans + webhook/email alerts
+   (`rails g schema_reaper:install`) — this landed free rather than Pro; it's
+   the kind of single-app automation the "anything a single app genuinely
+   needs stays free" principle below is about.
+4. **Pro 0.1**: private gem = MySQL + Slack/Jira reporters + hosted scan
+   runner + license key. Sell to the first 10 teams at half price for
+   feedback.
+5. **Pro 0.2**: dashboard engine, multi-DB fan-out, per-branch baselines.
+6. **SaaS beta**: once ~25 paying teams self-host.
 
 ---
 

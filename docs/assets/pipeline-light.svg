@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="380" viewBox="0 0 1000 380" role="img"
+     aria-labelledby="title desc">
+  <title id="title">How schema_reaper works</title>
+  <desc id="desc">Three inputs -- the live PostgreSQL schema and statistics, a static scan of your
+  codebase, and an optional runtime signal -- feed seven analyzers, which score each finding and
+  produce reports in four formats, a CI baseline gate, scheduled webhook and email reports, and
+  staged removal migrations.</desc>
+  <style>
+    .pop { opacity: 0; animation: pop .5s ease-out forwards; }
+    .flow { stroke-dasharray: 6 6; animation: flow 1.2s linear infinite; }
+    @keyframes pop { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    @keyframes flow { to { stroke-dashoffset: -12; } }
+    @media (prefers-reduced-motion: reduce) { .pop { animation: none; opacity: 1; } .flow { animation: none; } }
+  </style>
+  <g class="pop" style="animation-delay:0.00s">
+      <rect x="20" y="48" width="250" height="70" rx="12" fill="#f6f8fa" stroke="#d0d7de"/>
+      <text x="40" y="78" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="16" font-weight="600" fill="#1f2328">Live PostgreSQL</text>
+      <text x="40" y="100" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="13" fill="#59636e">schema · pg_stats · index scans</text></g>
+<g class="pop" style="animation-delay:0.12s">
+      <rect x="20" y="152" width="250" height="70" rx="12" fill="#f6f8fa" stroke="#d0d7de"/>
+      <text x="40" y="182" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="16" font-weight="600" fill="#1f2328">Your codebase</text>
+      <text x="40" y="204" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="13" fill="#59636e">Prism AST · views · SQL strings</text></g>
+<g class="pop" style="animation-delay:0.24s">
+      <rect x="20" y="256" width="250" height="70" rx="12" fill="#f6f8fa" stroke="#d0d7de" stroke-dasharray="5 4"/>
+      <text x="40" y="286" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="16" font-weight="600" fill="#1f2328">Runtime signal</text>
+      <text x="40" y="308" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="13" fill="#59636e">optional · sampled column reads</text></g>
+<path class="flow" d="M270 83.0 C 325 83.0, 320 190.0, 375 190.0" fill="none" stroke="#cc342d" stroke-width="2" stroke-opacity=".7"/>
+<path class="flow" d="M270 187.0 C 325 187.0, 320 190.0, 375 190.0" fill="none" stroke="#cc342d" stroke-width="2" stroke-opacity=".7"/>
+<path class="flow" d="M270 291.0 C 325 291.0, 320 190.0, 375 190.0" fill="none" stroke="#cc342d" stroke-width="2" stroke-opacity=".7"/>
+<path class="flow" d="M625 190.0 C 680 190.0, 675 66.0, 730 66.0" fill="none" stroke="#cc342d" stroke-width="2" stroke-opacity=".7"/>
+<path class="flow" d="M625 190.0 C 680 190.0, 675 148.0, 730 148.0" fill="none" stroke="#cc342d" stroke-width="2" stroke-opacity=".7"/>
+<path class="flow" d="M625 190.0 C 680 190.0, 675 230.0, 730 230.0" fill="none" stroke="#cc342d" stroke-width="2" stroke-opacity=".7"/>
+<path class="flow" d="M625 190.0 C 680 190.0, 675 312.0, 730 312.0" fill="none" stroke="#cc342d" stroke-width="2" stroke-opacity=".7"/>
+<g class="pop" style="animation-delay:.4s">
+      <rect x="375" y="60" width="250" height="260" rx="16" fill="#fff1f0" stroke="#cc342d" stroke-width="1.5"/>
+      <text x="399" y="94" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="17" font-weight="700" fill="#1f2328">7 analyzers</text>
+      <text x="399" y="114" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="12.5" fill="#59636e">confidence · severity · reclaim</text>
+      <text x="399" y="138" font-family="ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,'Liberation Mono',monospace" font-size="13" fill="#1f2328"><tspan fill="#cc342d">▸</tspan> dead_column</text><text x="399" y="160" font-family="ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,'Liberation Mono',monospace" font-size="13" fill="#1f2328"><tspan fill="#cc342d">▸</tspan> dead_table</text><text x="399" y="182" font-family="ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,'Liberation Mono',monospace" font-size="13" fill="#1f2328"><tspan fill="#cc342d">▸</tspan> unused_index</text><text x="399" y="204" font-family="ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,'Liberation Mono',monospace" font-size="13" fill="#1f2328"><tspan fill="#cc342d">▸</tspan> duplicate_index</text><text x="399" y="226" font-family="ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,'Liberation Mono',monospace" font-size="13" fill="#1f2328"><tspan fill="#cc342d">▸</tspan> missing_fk_index</text><text x="399" y="248" font-family="ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,'Liberation Mono',monospace" font-size="13" fill="#1f2328"><tspan fill="#cc342d">▸</tspan> always_null_column</text><text x="399" y="270" font-family="ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,'Liberation Mono',monospace" font-size="13" fill="#1f2328"><tspan fill="#cc342d">▸</tspan> single_value_column</text></g>
+<g class="pop" style="animation-delay:0.70s">
+      <rect x="730" y="34" width="250" height="64" rx="12" fill="#f6f8fa" stroke="#d0d7de"/>
+      <text x="748" y="61" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="14.5" font-weight="600" fill="#1f2328">Reports</text>
+      <text x="748" y="81" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="12.5" fill="#59636e">terminal · markdown · json · sarif</text></g>
+<g class="pop" style="animation-delay:0.82s">
+      <rect x="730" y="116" width="250" height="64" rx="12" fill="#f6f8fa" stroke="#d0d7de"/>
+      <text x="748" y="143" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="14.5" font-weight="600" fill="#1f2328">CI baseline gate</text>
+      <text x="748" y="163" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="12.5" fill="#59636e">fail only on new dead weight</text></g>
+<g class="pop" style="animation-delay:0.94s">
+      <rect x="730" y="198" width="250" height="64" rx="12" fill="#f6f8fa" stroke="#d0d7de"/>
+      <text x="748" y="225" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="14.5" font-weight="600" fill="#1f2328">Scheduled report</text>
+      <text x="748" y="245" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="12.5" fill="#59636e">Slack-style webhook + email</text></g>
+<g class="pop" style="animation-delay:1.06s">
+      <rect x="730" y="280" width="250" height="64" rx="12" fill="#f6f8fa" stroke="#d0d7de"/>
+      <text x="748" y="307" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="14.5" font-weight="600" fill="#1f2328">Staged migrations</text>
+      <text x="748" y="327" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="12.5" fill="#59636e">ignore first, drop later</text></g>
+</svg>

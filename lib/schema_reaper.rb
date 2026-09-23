@@ -31,7 +31,6 @@ require_relative "schema_reaper/migration_generator"
 require_relative "schema_reaper/runner"
 require_relative "schema_reaper/alert_config"
 require_relative "schema_reaper/notifier"
-require_relative "schema_reaper/mailer" if defined?(ActionMailer::Base)
 require_relative "schema_reaper/scan_job" if defined?(ActiveJob::Base)
 require_relative "schema_reaper/railtie" if defined?(Rails::Railtie)
 
@@ -39,6 +38,17 @@ require_relative "schema_reaper/railtie" if defined?(Rails::Railtie)
 # uses, then helps remove them safely. See {Runner} and the CLI.
 module SchemaReaper
   class Error < StandardError; end
+
+  # Autoloaded, not required: Mailer picks its superclass (the host app's
+  # ApplicationMailer, when there is one) at the moment it is defined. At
+  # gem-require time -- Bundler.require, early in boot -- the app's own
+  # autoloader isn't set up yet, so ApplicationMailer can never be seen and
+  # Mailer would always fall back to ActionMailer::Base, silently losing the
+  # app's `default from:`. Deferring to first reference (when a report is
+  # actually sent, long after boot) fixes that, and still lets a worker
+  # process resolve "SchemaReaper::Mailer" by name when it deserializes the
+  # mail delivery job.
+  autoload :Mailer, File.expand_path("schema_reaper/mailer", __dir__)
 
   REPORTERS = {
     "table" => Reporters::Table,

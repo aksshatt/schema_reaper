@@ -283,6 +283,16 @@ RSpec.describe SchemaReaper::Generators::InstallGenerator do
       expect { generator.warn_if_no_mailer_from }.to output(/no ApplicationMailer default `from:` detected/).to_stdout
     end
 
+    it "says nothing when there is no ApplicationMailer but ActionMailer::Base has a default from:" do
+      original = ActionMailer::Base.default_params
+      ActionMailer::Base.default(from: "noreply@example.com")
+      generator = build_generator(@destination)
+
+      expect { generator.warn_if_no_mailer_from }.not_to output(/no ApplicationMailer default/).to_stdout
+    ensure
+      ActionMailer::Base.default_params = original
+    end
+
     it "says nothing when ApplicationMailer sets a default from:" do
       mailer = Class.new(ActionMailer::Base) { default from: "noreply@example.com" }
       Object.const_set(:ApplicationMailer, mailer)

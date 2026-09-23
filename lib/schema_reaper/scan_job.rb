@@ -9,9 +9,31 @@ module SchemaReaper
   class ScanJob < ActiveJob::Base
     queue_as :default
 
-    def perform
+    # Rails' :async adapter (the default until Rails 8 unless an app sets up
+    # a real backend) runs jobs on a thread pool inside the enqueueing
+    # process. Fine in a web server; fatal in a one-shot `rake` process,
+    # which exits the moment the task returns and takes the queued job with
+    # it -- the scheduled scan would silently never run.
+    def self.in_process_queue?
+      queue_adapter.instance_of?(::ActiveJob::QueueAdapters::AsyncAdapter)
+    end
+
+    # What the scheduled cron entry (`rake schema_reaper:alert`) calls:
+    # enqueue normally, but on an in-process queue run inline instead --
+    # email included -- so the scan isn't lost when the process exits.
+    def self.run_scheduled
+      return perform_later unless in_process_queue?
+
+      puts "[schema_reaper] ActiveJob adapter is :async -- running the scan inline"
+      perform_now(deliver_mail_now: true)
+    end
+
+    # `deliver_mail_now:` is for running inline from a process about to exit
+    # (see the schema_reaper:alert rake task) -- a deliver_later there would
+    # be lost for the same reason as above.
+    def perform(deliver_mail_now: false)
       findings = Runner.new.run
-      Notifier.new(findings).deliver
+      Notifier.new(findings, mail_delivery: deliver_mail_now ? :now : :later).deliver
     end
   end
 end

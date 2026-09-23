@@ -48,7 +48,7 @@ module SchemaReaper
 
         say_status :warning,
                    "schema_reaper is Gemfile-scoped to group: :development. Most production deploy " \
-                   "pipelines strip dev/test groups (`bundle install --without development test`), so " \
+                   "pipelines strip dev/test groups (`BUNDLE_WITHOUT=development:test`), so " \
                    "the scheduled scan will not run in production until you remove that restriction.",
                    :red
       end
@@ -57,7 +57,8 @@ module SchemaReaper
         return if mailer_from_configured?
 
         say_status :warning,
-                   "no ApplicationMailer default `from:` detected. SchemaReaper::Mailer falls back to a " \
+                   "no ApplicationMailer default `from:` detected (nor config.action_mailer.default_options). " \
+                   "SchemaReaper::Mailer falls back to a " \
                    "placeholder sender in that case, which most real SMTP relays reject or spam-flag -- " \
                    "email reports would silently fail to arrive. If you plan to use the email channel " \
                    "(config.emails in the initializer this generator just wrote), set " \
@@ -152,7 +153,7 @@ module SchemaReaper
       # `gem "schema_reaper", group: :development` (or the equivalent
       # `group :development do ... end` block form) in the app's own Gemfile
       # -- see README's current install snippet. A dev-scoped gem is absent
-      # from `bundle install --without development test`, which most
+      # from `BUNDLE_WITHOUT=development:test` installs, which most
       # production deploy pipelines run, so the scheduled scan silently
       # never runs.
       #
@@ -171,15 +172,14 @@ module SchemaReaper
         false # a Gemfile we can't parse shouldn't block the rest of the generator
       end
 
-      # Checked against ApplicationMailer specifically, not SchemaReaper::Mailer
-      # -- at generate time the app is already booted (ActionMailer, and
-      # ApplicationMailer if the app has one, are loaded), so this reads the
-      # same `default_params[:from]` chain SchemaReaper::Mailer itself will
-      # inherit from once it's loaded.
+      # Checked against the class SchemaReaper::Mailer will inherit from --
+      # ApplicationMailer when the app has one, ActionMailer::Base otherwise
+      # (where `config.action_mailer.default_options = { from: ... }` lands).
+      # At generate time the app is already booted, so this reads the same
+      # `default_params[:from]` chain Mailer itself will see.
       def mailer_from_configured?
-        return false unless defined?(::ApplicationMailer) # no mailer to inherit from at all
-
-        ::ApplicationMailer.default_params[:from].present?
+        parent = defined?(::ApplicationMailer) ? ::ApplicationMailer : ::ActionMailer::Base
+        parent.default_params[:from].present?
       rescue StandardError
         true # can't determine -- don't nag over something we're unsure about
       end
