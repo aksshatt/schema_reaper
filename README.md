@@ -324,7 +324,8 @@ SchemaReaper::Runtime::Tracker.install!(
 or, in Rails, boot with `SCHEMA_REAPER_TRACK=1` (and optionally
 `SCHEMA_REAPER_SAMPLE=0.05` for the sample rate). Let it run in staging or
 production for a couple of weeks. A column unseen in **both** code and
-≥ 14 observed days of runtime data reaches **0.9** confidence (0.8 if it's
+≥ 14 observed days of runtime data (`min_age_days` in
+[`.schema_reaper.yml`](#configuration)) reaches **0.9** confidence (0.8 if it's
 `NOT NULL`).
 
 > [!NOTE]
@@ -412,6 +413,7 @@ ignore:
   columns: []          # exact names, or "/regex/" patterns
 always_keep_columns: [id, created_at, updated_at, type]
 gem_awareness: true    # auto-whitelist columns owned by known gems
+min_age_days: 14       # days of runtime data before dead_column trusts it
 runtime_log: .schema_reaper/runtime.jsonl
 history_log: .schema_reaper/history.jsonl
 baseline: .schema_reaper/baseline.json

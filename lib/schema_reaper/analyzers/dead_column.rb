@@ -4,12 +4,12 @@ module SchemaReaper
   module Analyzers
     # Flags columns present in the schema but never referenced in code. When a
     # runtime usage log is supplied, its signal is fused in: a column unseen in
-    # BOTH code and >= 14 observed days of runtime reaches high confidence.
+    # BOTH code and at least `min_age_days` (default 14) observed days of
+    # runtime reaches high confidence.
     class DeadColumn < Base
       Registry.register(self)
 
-      STATIC_ONLY_CAP  = 0.6
-      RUNTIME_MIN_DAYS = 14
+      STATIC_ONLY_CAP = 0.6
 
       def call
         schema.tables.reject { |t| config.ignore_tables.include?(t.name) }
@@ -48,12 +48,18 @@ module SchemaReaper
       end
 
       def confidence_for(col)
-        if runtime.present? && runtime.observed_days >= RUNTIME_MIN_DAYS
+        if runtime.present? && runtime.observed_days >= min_runtime_days
           col.null ? 0.9 : 0.8
         else
           base = col.null ? 0.5 : 0.4
           [base, STATIC_ONLY_CAP].min
         end
+      end
+
+      # How many days of runtime data it takes before "never read at runtime"
+      # is trusted. A config built without the key (nil) keeps the default.
+      def min_runtime_days
+        config.min_age_days || Config::DEFAULTS["min_age_days"]
       end
 
       def evidence_for(table, col)
