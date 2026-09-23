@@ -1,5 +1,61 @@
 # Changelog
 
+## [2.0.0] - 2026-09-23
+
+### Added
+- **`rails generate schema_reaper:install`** — one-time setup for running
+  `schema_reaper` unattended in production, with zero ongoing DevOps
+  dependency: a scheduled scan, results delivered automatically, and an
+  on-demand manual trigger, none of it gated behind infrastructure a given
+  project may not have (Slack, a CI pipeline with prod network access,
+  etc.).
+  - `SchemaReaper::AlertConfig` / `config/initializers/schema_reaper.rb` —
+    where reports go (`emails`, `webhook_url`). Plain committed config, not
+    secrets; commented out by default so an unfilled-in initializer is a
+    safe no-op.
+  - `SchemaReaper::Notifier` — delivers a scan's findings through whichever
+    channels are configured. Both fire when both are set (two audiences —
+    a dev-facing chat channel and a formal inbox record — not a fallback
+    chain). Webhook: a Slack-compatible `{"text": ...}` POST, with a 10s
+    timeout so a dead host can't hang a queue worker indefinitely. Email:
+    reuses the host app's own ActionMailer setup via `SchemaReaper::Mailer`
+    (inherits `ApplicationMailer` when the host app defines one, falls back
+    to a placeholder `default from:` otherwise so delivery degrades to a
+    normal SMTP rejection instead of a hard crash). Delivery failures are
+    logged, never raised, so a flaky endpoint can't fail the scan job.
+  - `SchemaReaper::ScanJob` / `rake schema_reaper:alert` — the one job both
+    the schedule and the manual trigger enqueue.
+  - Generated `app/controllers/schema_reaper_controller.rb` + a route for
+    the manual trigger — bearer-token protected via
+    `Rails.application.credentials` (decrypted with the `RAILS_MASTER_KEY`
+    every Rails app already has, so this introduces zero new production
+    configuration), checked with `ActiveSupport::SecurityUtils
+    .secure_compare`, and a shared 5-minute cooldown via `Rails.cache` so a
+    valid or leaked token can't be POSTed repeatedly to stack up scans
+    against production.
+  - A schedule entry in whichever of `config/schedule.rb` (`whenever`) or
+    `config/schedule.yml` (`sidekiq-cron`) the app's `Gemfile.lock` says it
+    has; prints manual instructions instead of guessing when neither gem is
+    present. Warns at install time if the Gemfile scopes `schema_reaper` to
+    `group: :development` (most production deploy pipelines strip dev/test
+    groups) or if no `ApplicationMailer` `default from:` is detected (email
+    reports would otherwise silently never arrive).
+  - Re-running the generator is safe — every step checks for its own
+    marker before writing, so nothing gets duplicated.
+
+  CI/SARIF stays a separate, already-documented path for PR/staging checks
+  — this is for production, where GitHub-hosted runners don't have prod
+  network access by default.
+
+  Verified against a real booted `Rails::Application` (not just specs):
+  the manual-trigger endpoint correctly rejects requests without hitting
+  Rails' CSRF protection, a valid token enqueues and a second one within
+  the cooldown 429s without enqueuing twice, and wrong-token requests
+  during the cooldown still 401 rather than being masked by the lock.
+  Reviewed by @aksshatt; three follow-up findings (a stale doc comment, the
+  mailer `from:` gap, and the missing rate limit) addressed and verified
+  the same way. (#20, mitkush)
+
 ## [1.0.16] - 2026-09-22
 
 ### Fixed
