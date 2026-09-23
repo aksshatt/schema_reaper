@@ -1,0 +1,69 @@
+# frozen_string_literal: true
+
+# Manual, on-demand trigger for the production schema_reaper scan -- enqueues
+# the exact same job the schedule uses, so there is one code path to keep
+# correct. Protected by a bearer token stored in encrypted credentials
+# (config/credentials.yml.enc, key schema_reaper.trigger_token) rather than a
+# DevOps-provisioned ENV var -- every Rails app already has the
+# RAILS_MASTER_KEY needed to decrypt it, so this introduces zero new
+# production configuration.
+#
+# Trigger it with (the token is printed once by the install generator --
+# store it somewhere your team can find it, e.g. a password manager. It is
+# deliberately NOT embedded in the scheduled report itself: that report goes
+# to Slack/email, and a bearer token that authorizes a production action
+# doesn't belong in either):
+#
+#   curl -X POST https://your-app.example.com/internal/schema_scan \
+#     -H "Authorization: Bearer <token>"
+class SchemaReaperController < ActionController::Base
+  # This is a token-authenticated API endpoint, not a session-backed form --
+  # Rails' CSRF protection is meant for the latter. Deliberately does NOT
+  # inherit from ::ApplicationController, and explicitly skips the
+  # authenticity-token check (`raise: false` so this doesn't itself blow up
+  # on an app where default_protect_from_forgery is off and the callback was
+  # never registered). Without this, a plain curl POST is rejected with
+  # ActionController::InvalidAuthenticityToken before the token check below
+  # even runs -- Rails wires `protect_from_forgery with: :exception` onto
+  # ActionController::Base itself for every app using Rails' post-5.2
+  # defaults, so every subclass inherits it, this one included.
+  skip_before_action :verify_authenticity_token, raise: false
+
+  # A valid (or leaked) token could otherwise be POSTed repeatedly, each hit
+  # enqueueing a full schema introspection against production. This is not
+  # per-caller rate limiting -- it's a single shared cooldown so a burst of
+  # triggers (accidental double-click, a leaked token being hammered) can't
+  # stack up scans faster than they can plausibly be useful. Rails.cache is
+  # whatever the app already has configured; on the default NullStore (no
+  # caching configured at all) this is a no-op, same as before this guard
+  # existed -- configure a real cache store to get actual protection.
+  TRIGGER_COOLDOWN = 5.minutes
+
+  def trigger
+    return head(:unauthorized) unless token_valid?
+    return head(:too_many_requests) unless acquire_trigger_lock
+
+    SchemaReaper::ScanJob.perform_later
+    head :accepted
+  end
+
+  private
+
+  def acquire_trigger_lock
+    Rails.cache.write("schema_reaper:manual_trigger_lock", true, unless_exist: true, expires_in: TRIGGER_COOLDOWN)
+  end
+
+  def token_valid?
+    expected = Rails.application.credentials.dig(:schema_reaper, :trigger_token)
+    return false if expected.blank?
+
+    provided = request.headers["Authorization"].to_s.delete_prefix("Bearer ").strip
+    return false if provided.empty?
+
+    ActiveSupport::SecurityUtils.secure_compare(provided, expected)
+  rescue ActiveSupport::EncryptedFile::MissingKeyError, ActiveSupport::MessageEncryptor::InvalidMessage
+    # RAILS_MASTER_KEY absent or credentials undecryptable in this
+    # environment -- fail closed (unauthorized), don't 500.
+    false
+  end
+end

@@ -142,5 +142,26 @@ RSpec.describe "supporting units" do
     it "names nothing for a gem that is not installed" do
       expect(described_class.owned_tables(installed: %w[devise])).to be_empty
     end
+
+    describe ".installed_gems" do
+      # Every other example above passes installed: explicitly, so this is
+      # the only spec that exercises the real detection Runner actually uses
+      # in production.
+      it "lists real gems from this project's own bundle via Bundler" do
+        names = described_class.installed_gems
+        expect(names).to include("rspec", "prism") # gems this gemspec/Gemfile actually declares
+      end
+
+      it "falls back to Gem::Specification when Bundler is not defined" do
+        hide_const("Bundler")
+        names = described_class.installed_gems
+        expect(names).to include("rspec-core")
+      end
+
+      it "returns an empty list instead of raising if gem detection itself blows up" do
+        allow(Bundler).to receive(:load).and_raise(StandardError, "corrupt lockfile")
+        expect(described_class.installed_gems).to eq([])
+      end
+    end
   end
 end

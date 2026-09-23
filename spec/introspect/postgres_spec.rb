@@ -31,6 +31,14 @@ RSpec.describe SchemaReaper::Introspect::Postgres do
 
       expect(introspector.send(:primary_key_for, "ghost_table")).to be_nil
     end
+
+    it "wraps a real connection failure as SchemaReaper::Error, not a raw PG::ConnectionBad" do
+      # A genuinely refused connection (port 1: nothing listens there, so it
+      # fails instantly -- no live test database needed, and no risk of a
+      # slow/hanging spec from an unreachable host).
+      expect { described_class.new("postgres://localhost:1/nonexistent?connect_timeout=1") }
+        .to raise_error(SchemaReaper::Error, /could not connect to the database/)
+    end
   end
 
   url = ENV.fetch("SCHEMA_REAPER_TEST_DATABASE_URL", nil)
@@ -86,6 +94,23 @@ RSpec.describe SchemaReaper::Introspect::Postgres do
           );
         CREATE INDEX idx_user_only
           ON schema_reaper_expr_idx (user_id);
+
+        -- Analysed with real data, unlike the tables above -- reltuples and
+        -- pg_stats are both populated only after ANALYZE, so this is what
+        -- exercises row_count_for's positive branch and column_stats_for's
+        -- populated branch (both otherwise unreachable: a freshly-created,
+        -- never-analysed table reports reltuples = -1 and has zero pg_stats
+        -- rows).
+        DROP TABLE IF EXISTS schema_reaper_analysed;
+        CREATE TABLE schema_reaper_analysed (
+          id bigserial PRIMARY KEY,
+          always_present text NOT NULL,
+          sometimes_null text
+        );
+        INSERT INTO schema_reaper_analysed (always_present, sometimes_null)
+        SELECT 'x', CASE WHEN i % 2 = 0 THEN NULL ELSE 'y' END
+        FROM generate_series(1, 100) AS i;
+        ANALYZE schema_reaper_analysed;
       SQL
     end
 
@@ -93,6 +118,7 @@ RSpec.describe SchemaReaper::Introspect::Postgres do
       @conn&.exec("DROP TABLE IF EXISTS schema_reaper_idx_order")
       @conn&.exec("DROP TABLE IF EXISTS schema_reaper_composite_pk")
       @conn&.exec("DROP TABLE IF EXISTS schema_reaper_expr_idx")
+      @conn&.exec("DROP TABLE IF EXISTS schema_reaper_analysed")
       @conn&.close
     end
 
@@ -147,6 +173,26 @@ RSpec.describe SchemaReaper::Introspect::Postgres do
       user_only = expr_index_named("idx_user_only")
 
       expect(expr_led.covers?(user_only)).to be(false)
+    end
+
+    def analysed_table
+      described_class.new(db_url).call.tables.find { |t| t.name == "schema_reaper_analysed" }
+    end
+
+    it "reports a real row-count estimate once the table has been analysed" do
+      # reltuples is -1 (unknown) for a table that's never been ANALYZEd --
+      # this table was, in the before(:all) setup, so the positive branch
+      # of row_count_for is what's under test here.
+      expect(analysed_table.row_count).to be_within(20).of(100) # planner estimate, not exact
+    end
+
+    it "reports null_fraction and distinct_values from pg_stats once analysed" do
+      always_present = analysed_table.column("always_present")
+      sometimes_null = analysed_table.column("sometimes_null")
+
+      expect(always_present.null_fraction).to eq(0.0)
+      expect(sometimes_null.null_fraction).to be_within(0.15).of(0.5)
+      expect(sometimes_null.distinct_values).not_to be_nil
     end
   end
 end
