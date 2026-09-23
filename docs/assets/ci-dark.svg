@@ -8,13 +8,17 @@
     .pulse { animation: pulse 2.4s ease-in-out 1.2s infinite; transform-box: fill-box; transform-origin: center; }
     .grow { transform: scaleX(0); transform-box: fill-box; transform-origin: left center;
             animation: grow 2.2s cubic-bezier(.4,0,.2,1) .9s forwards; }
+    .progress { transform: scaleX(0); transform-box: fill-box; transform-origin: left center;
+                stroke-dasharray: 10 8;
+                animation: grow 2.2s cubic-bezier(.4,0,.2,1) .9s forwards, progressFlow 1s linear infinite; }
     @keyframes pop { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
     @keyframes flow { to { stroke-dashoffset: -12; } }
+    @keyframes progressFlow { to { stroke-dashoffset: -18; } }
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
     @keyframes grow { to { transform: scaleX(1); } }
     @media (prefers-reduced-motion: reduce) {
       .pop { animation: none; opacity: 1; } .flow, .pulse { animation: none; }
-      .grow { animation: none; transform: none; }
+      .grow, .progress { animation: none; transform: none; }
     }
   </style>
 <path class="flow" d="M200 100 C 225.0 100, 225.0 100, 250 100" fill="none" stroke="#ff7b72" stroke-width="2" stroke-opacity=".75"/>

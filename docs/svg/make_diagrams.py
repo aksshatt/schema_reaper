@@ -28,13 +28,17 @@ STYLE = """
     .pulse { animation: pulse 2.4s ease-in-out 1.2s infinite; transform-box: fill-box; transform-origin: center; }
     .grow { transform: scaleX(0); transform-box: fill-box; transform-origin: left center;
             animation: grow 2.2s cubic-bezier(.4,0,.2,1) .9s forwards; }
+    .progress { transform: scaleX(0); transform-box: fill-box; transform-origin: left center;
+                stroke-dasharray: 10 8;
+                animation: grow 2.2s cubic-bezier(.4,0,.2,1) .9s forwards, progressFlow 1s linear infinite; }
     @keyframes pop { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
     @keyframes flow { to { stroke-dashoffset: -12; } }
+    @keyframes progressFlow { to { stroke-dashoffset: -18; } }
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
     @keyframes grow { to { transform: scaleX(1); } }
     @media (prefers-reduced-motion: reduce) {
       .pop { animation: none; opacity: 1; } .flow, .pulse { animation: none; }
-      .grow { animation: none; transform: none; }
+      .grow, .progress { animation: none; transform: none; }
     }
   </style>"""
 
@@ -151,7 +155,7 @@ for theme, t in THEMES.items():
     W, H = 1000, 210
     y0 = 92
     parts = [f'<line x1="60" y1="{y0}" x2="940" y2="{y0}" stroke="{t["track"]}" stroke-width="4" stroke-linecap="round"/>',
-             f'<line class="grow" x1="60" y1="{y0}" x2="940" y2="{y0}" stroke="{t["ok"]}" stroke-width="4" stroke-linecap="round"/>']
+             f'<line class="progress" x1="60" y1="{y0}" x2="940" y2="{y0}" stroke="{t["ok"]}" stroke-width="4" stroke-linecap="round"/>']
     steps = [
         (60, "generate-migration", "writes the pair", t["blue"], t["bluebg"]),
         (340, "1 · ignore", "self.ignored_columns += %w[col]", t["ok"], t["okbg"]),

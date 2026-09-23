@@ -8,17 +8,21 @@
     .pulse { animation: pulse 2.4s ease-in-out 1.2s infinite; transform-box: fill-box; transform-origin: center; }
     .grow { transform: scaleX(0); transform-box: fill-box; transform-origin: left center;
             animation: grow 2.2s cubic-bezier(.4,0,.2,1) .9s forwards; }
+    .progress { transform: scaleX(0); transform-box: fill-box; transform-origin: left center;
+                stroke-dasharray: 10 8;
+                animation: grow 2.2s cubic-bezier(.4,0,.2,1) .9s forwards, progressFlow 1s linear infinite; }
     @keyframes pop { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
     @keyframes flow { to { stroke-dashoffset: -12; } }
+    @keyframes progressFlow { to { stroke-dashoffset: -18; } }
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
     @keyframes grow { to { transform: scaleX(1); } }
     @media (prefers-reduced-motion: reduce) {
       .pop { animation: none; opacity: 1; } .flow, .pulse { animation: none; }
-      .grow { animation: none; transform: none; }
+      .grow, .progress { animation: none; transform: none; }
     }
   </style>
 <line x1="60" y1="92" x2="940" y2="92" stroke="#30363d" stroke-width="4" stroke-linecap="round"/>
-<line class="grow" x1="60" y1="92" x2="940" y2="92" stroke="#3fb950" stroke-width="4" stroke-linecap="round"/>
+<line class="progress" x1="60" y1="92" x2="940" y2="92" stroke="#3fb950" stroke-width="4" stroke-linecap="round"/>
 <g class="pop" style="animation-delay:0.20s">
       <circle cx="60" cy="92" r="15" fill="#0f2233" stroke="#79c0ff" stroke-width="3"/>
       <circle cx="60" cy="92" r="5" fill="#79c0ff"/>
