@@ -6,8 +6,8 @@
 [![Gem Downloads](https://img.shields.io/gem/dt/schema_reaper?color=cc342d&logo=rubygems&logoColor=white&label=downloads)](https://rubygems.org/gems/schema_reaper)
 [![CI](https://github.com/aksshatt/schema_reaper/actions/workflows/main.yml/badge.svg)](https://github.com/aksshatt/schema_reaper/actions/workflows/main.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE.txt)
-![Ruby](https://img.shields.io/badge/ruby-%3E%3D%202.7-CC342D?logo=ruby&logoColor=white)
-![PostgreSQL](https://img.shields.io/badge/postgres-only%20(for%20now)-336791?logo=postgresql&logoColor=white)
+[![Ruby](https://img.shields.io/badge/ruby-%3E%3D%202.7-CC342D?logo=ruby&logoColor=white)](schema_reaper.gemspec)
+[![PostgreSQL](https://img.shields.io/badge/postgres-only%20(for%20now)-336791?logo=postgresql&logoColor=white)](#install)
 
 | ⚡ [Quickstart](#quickstart) | ⚙️ [Usage](#usage) | 🤖 [Production automation](#production-automation) | 🔍 [Analyzers](#analyzers) | 🛡️ [Safety model](#safety-model) | ✅ [CI](#ci) | 🧩 [Configuration](#configuration) | 💼 [Pro](#pro-for-teams) |
 |:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
@@ -23,9 +23,10 @@ estimate of the disk it reclaims, and comes with a concrete fix.
 
 It finds three kinds of schema debt:
 
-- **Dead weight** — columns and tables nothing references any more
-- **Index trouble** — indexes nobody queries, indexes a wider one already covers, foreign keys with no index at all
-- **Degenerate data** — columns that are always `NULL`, or hold the same value in every row
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/debt-dark.svg">
+  <img src="docs/assets/debt-light.svg" width="100%" alt="Dead weight — columns and tables nothing references any more (dead_column, dead_table). Index trouble — indexes nobody queries, indexes a wider one already covers, and foreign keys with no index (unused_index, duplicate_index, missing_fk_index). Degenerate data — columns that are always NULL or hold one value in every row (always_null_column, single_value_column).">
+</picture>
 
 ## Quickstart
 
@@ -71,9 +72,11 @@ it only reads, and hands you migrations to review.
 gem "schema_reaper"
 ```
 
-Requires Ruby >= 2.7 (CI-tested on 2.7 – 3.3) and PostgreSQL. Rails is optional
-for the CLI; the rake tasks and production automation need Rails, and the
-runtime tracker needs ActiveRecord.
+| requirement | notes |
+|---|---|
+| Ruby >= 2.7 | CI-tested on 2.7 – 3.3 |
+| PostgreSQL + the `pg` gem | uses your app's own `pg` (every Rails + PostgreSQL app already bundles it); add `gem "pg"` for standalone CLI use. Tables in the `public` schema are scanned. MySQL is on the [roadmap](#roadmap). |
+| Rails | optional for the CLI; the rake tasks and production automation need it, and the runtime tracker needs ActiveRecord |
 
 > [!IMPORTANT]
 > **Only scanning locally or in CI?** Scope it out of your production bundle:
@@ -155,6 +158,11 @@ beyond a normal deploy.
 ```sh
 bin/rails generate schema_reaper:install
 ```
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/automation-dark.svg">
+  <img src="docs/assets/automation-light.svg" width="100%" alt="whenever or cron runs rake schema_reaper:alert, sidekiq-cron enqueues the job directly, and the token-protected manual trigger POST /internal/schema_scan enqueues it on demand. All three run SchemaReaper::ScanJob, which scans the live database and your code; the Notifier sends the report to a Slack-compatible webhook and by email through your ApplicationMailer.">
+</picture>
 
 | generated | purpose |
 |---|---|
@@ -327,6 +335,11 @@ production for a couple of weeks. A column unseen in **both** code and
 
 ## Safety model
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/safety-dark.svg">
+  <img src="docs/assets/safety-light.svg" width="100%" alt="generate-migration writes two migrations. Step 1 adds the column to ignored_columns and is deployed; nothing is dropped. Once it has soaked in production and nothing reads the column, step 2 runs remove_column, which is irreversible.">
+</picture>
+
 `schema_reaper` never drops anything itself. For a dead column,
 `generate-migration users legacy_api_token` writes a pair:
 
@@ -343,6 +356,11 @@ value isn't a meaningful default, and `dead_table` to rule out external
 consumers.
 
 ## CI
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/ci-dark.svg">
+  <img src="docs/assets/ci-light.svg" width="100%" alt="On each pull request, schema_reaper scan --ci compares the findings with the committed baseline.json. It passes when every finding is already in the baseline and exits 1 when the change adds new dead weight.">
+</picture>
 
 ```yaml
 # .github/workflows/schema_reaper.yml (the relevant parts)
@@ -371,7 +389,13 @@ fails only when a change adds *new* dead weight.
 ## Configuration
 
 Every key is optional. Drop a `.schema_reaper.yml` in the project root to
-override any of these defaults:
+override any of these defaults.
+
+> [!CAUTION]
+> A list you set **replaces** the default list rather than adding to it. Setting
+> `ignore: { tables: [legacy_audit] }` stops ignoring `schema_migrations` and
+> `ar_internal_metadata`, and `always_keep_columns: [uuid]` stops protecting
+> `created_at`, `updated_at` and `type`. Repeat the defaults you still want.
 
 <details>
 <summary><b>.schema_reaper.yml — all keys with their defaults</b></summary>
@@ -388,7 +412,6 @@ ignore:
   columns: []          # exact names, or "/regex/" patterns
 always_keep_columns: [id, created_at, updated_at, type]
 gem_awareness: true    # auto-whitelist columns owned by known gems
-min_age_days: 14
 runtime_log: .schema_reaper/runtime.jsonl
 history_log: .schema_reaper/history.jsonl
 baseline: .schema_reaper/baseline.json

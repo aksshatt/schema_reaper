@@ -6,14 +6,51 @@
   unreferenced empty stale_exports table, each with a confidence bar, severity and a suggested fix.</desc>
   <style>
     .t { font-family: ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,'Liberation Mono',monospace; font-size: 13px; white-space: pre; }
-    .l { opacity: 0; animation: in .35s ease-out forwards; }
-    .cmd { clip-path: inset(0 100% 0 0); animation: type 1.35s steps(30, end) 0.5s forwards; }
-    .cursor { animation: move 1.35s steps(30, end) 0.5s forwards, blink 1s step-end infinite; }
-    @keyframes type { to { clip-path: inset(0 0 0 0); } }
-    @keyframes move { to { transform: translateX(234.0px); } }
-    @keyframes in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+    .flow { stroke-dasharray: 6 6; animation: flow 1.2s linear infinite; }
+    .pulse { animation: pulse 2.4s ease-in-out 1.2s infinite; transform-box: fill-box; transform-origin: center; }
+    .grow { transform-box: fill-box; transform-origin: left center; }
+    .strike { stroke-dasharray: 200; }
+    .scan { opacity: 0; }
+    @keyframes flow { to { stroke-dashoffset: -12; } }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
     @keyframes blink { 50% { opacity: 0; } }
-    @media (prefers-reduced-motion: reduce) { .l { animation: none; opacity: 1; } .cmd { animation: none; clip-path: none; } .cursor { animation: none; transform: translateX(234.0px); } }
+    @keyframes a432c61 { 0% { clip-path:inset(0 100% 0 0);animation-timing-function:step-end } 3.57% { clip-path:inset(0 100% 0 0);animation-timing-function:steps(30, end) } 13.21% { clip-path:inset(0 0 0 0) } 92.86% { clip-path:inset(0 0 0 0);animation-timing-function:ease-in } 96.79% { clip-path:inset(0 100% 0 0) } 100% { clip-path:inset(0 100% 0 0) } }
+    .a432c61 { animation: a432c61 14s linear infinite; }
+    @keyframes a432c62 { 0% { transform:translateX(-234.0px);animation-timing-function:step-end } 3.57% { transform:translateX(-234.0px);animation-timing-function:steps(30, end) } 13.21% { transform:translateX(0) } 92.86% { transform:translateX(0);animation-timing-function:ease-in } 96.79% { transform:translateX(-234.0px) } 100% { transform:translateX(-234.0px) } }
+    .a432c62 { animation: a432c62 14s linear infinite, blink 1s step-end infinite; }
+    @keyframes a432c63 { 0% { opacity:0;transform:translateY(4px);animation-timing-function:step-end } 17.07% { opacity:0;transform:translateY(4px);animation-timing-function:ease-out } 19.57% { opacity:1;transform:none } 92.86% { opacity:1;transform:none;animation-timing-function:ease-in } 96.79% { opacity:0;transform:translateY(4px) } 100% { opacity:0;transform:translateY(4px) } }
+    .a432c63 { animation: a432c63 14s linear infinite; }
+    @keyframes a432c64 { 0% { opacity:0;transform:translateY(4px);animation-timing-function:step-end } 17.71% { opacity:0;transform:translateY(4px);animation-timing-function:ease-out } 20.21% { opacity:1;transform:none } 92.86% { opacity:1;transform:none;animation-timing-function:ease-in } 96.79% { opacity:0;transform:translateY(4px) } 100% { opacity:0;transform:translateY(4px) } }
+    .a432c64 { animation: a432c64 14s linear infinite; }
+    @keyframes a432c65 { 0% { opacity:0;transform:translateY(4px);animation-timing-function:step-end } 18.36% { opacity:0;transform:translateY(4px);animation-timing-function:ease-out } 20.86% { opacity:1;transform:none } 92.86% { opacity:1;transform:none;animation-timing-function:ease-in } 96.79% { opacity:0;transform:translateY(4px) } 100% { opacity:0;transform:translateY(4px) } }
+    .a432c65 { animation: a432c65 14s linear infinite; }
+    @keyframes a432c66 { 0% { opacity:0;transform:translateY(4px);animation-timing-function:step-end } 19.64% { opacity:0;transform:translateY(4px);animation-timing-function:ease-out } 22.14% { opacity:1;transform:none } 92.86% { opacity:1;transform:none;animation-timing-function:ease-in } 96.79% { opacity:0;transform:translateY(4px) } 100% { opacity:0;transform:translateY(4px) } }
+    .a432c66 { animation: a432c66 14s linear infinite; }
+    @keyframes a432c67 { 0% { opacity:0;transform:translateY(4px);animation-timing-function:step-end } 20.29% { opacity:0;transform:translateY(4px);animation-timing-function:ease-out } 22.79% { opacity:1;transform:none } 92.86% { opacity:1;transform:none;animation-timing-function:ease-in } 96.79% { opacity:0;transform:translateY(4px) } 100% { opacity:0;transform:translateY(4px) } }
+    .a432c67 { animation: a432c67 14s linear infinite; }
+    @keyframes a432c68 { 0% { opacity:0;transform:translateY(4px);animation-timing-function:step-end } 20.93% { opacity:0;transform:translateY(4px);animation-timing-function:ease-out } 23.43% { opacity:1;transform:none } 92.86% { opacity:1;transform:none;animation-timing-function:ease-in } 96.79% { opacity:0;transform:translateY(4px) } 100% { opacity:0;transform:translateY(4px) } }
+    .a432c68 { animation: a432c68 14s linear infinite; }
+    @keyframes a432c69 { 0% { opacity:0;transform:translateY(4px);animation-timing-function:step-end } 21.57% { opacity:0;transform:translateY(4px);animation-timing-function:ease-out } 24.07% { opacity:1;transform:none } 92.86% { opacity:1;transform:none;animation-timing-function:ease-in } 96.79% { opacity:0;transform:translateY(4px) } 100% { opacity:0;transform:translateY(4px) } }
+    .a432c69 { animation: a432c69 14s linear infinite; }
+    @keyframes a432c610 { 0% { opacity:0;transform:translateY(4px);animation-timing-function:step-end } 22.21% { opacity:0;transform:translateY(4px);animation-timing-function:ease-out } 24.71% { opacity:1;transform:none } 92.86% { opacity:1;transform:none;animation-timing-function:ease-in } 96.79% { opacity:0;transform:translateY(4px) } 100% { opacity:0;transform:translateY(4px) } }
+    .a432c610 { animation: a432c610 14s linear infinite; }
+    @keyframes a432c611 { 0% { opacity:0;transform:translateY(4px);animation-timing-function:step-end } 22.86% { opacity:0;transform:translateY(4px);animation-timing-function:ease-out } 25.36% { opacity:1;transform:none } 92.86% { opacity:1;transform:none;animation-timing-function:ease-in } 96.79% { opacity:0;transform:translateY(4px) } 100% { opacity:0;transform:translateY(4px) } }
+    .a432c611 { animation: a432c611 14s linear infinite; }
+    @keyframes a432c612 { 0% { opacity:0;transform:translateY(4px);animation-timing-function:step-end } 23.50% { opacity:0;transform:translateY(4px);animation-timing-function:ease-out } 26.00% { opacity:1;transform:none } 92.86% { opacity:1;transform:none;animation-timing-function:ease-in } 96.79% { opacity:0;transform:translateY(4px) } 100% { opacity:0;transform:translateY(4px) } }
+    .a432c612 { animation: a432c612 14s linear infinite; }
+    @keyframes a432c613 { 0% { opacity:0;transform:translateY(4px);animation-timing-function:step-end } 24.79% { opacity:0;transform:translateY(4px);animation-timing-function:ease-out } 27.29% { opacity:1;transform:none } 92.86% { opacity:1;transform:none;animation-timing-function:ease-in } 96.79% { opacity:0;transform:translateY(4px) } 100% { opacity:0;transform:translateY(4px) } }
+    .a432c613 { animation: a432c613 14s linear infinite; }
+    @keyframes a432c614 { 0% { opacity:0;transform:translateY(4px);animation-timing-function:step-end } 25.43% { opacity:0;transform:translateY(4px);animation-timing-function:ease-out } 27.93% { opacity:1;transform:none } 92.86% { opacity:1;transform:none;animation-timing-function:ease-in } 96.79% { opacity:0;transform:translateY(4px) } 100% { opacity:0;transform:translateY(4px) } }
+    .a432c614 { animation: a432c614 14s linear infinite; }
+    @keyframes a432c615 { 0% { opacity:0;transform:translateY(4px);animation-timing-function:step-end } 26.07% { opacity:0;transform:translateY(4px);animation-timing-function:ease-out } 28.57% { opacity:1;transform:none } 92.86% { opacity:1;transform:none;animation-timing-function:ease-in } 96.79% { opacity:0;transform:translateY(4px) } 100% { opacity:0;transform:translateY(4px) } }
+    .a432c615 { animation: a432c615 14s linear infinite; }
+    @keyframes a432c616 { 0% { opacity:0;transform:translateY(4px);animation-timing-function:step-end } 26.71% { opacity:0;transform:translateY(4px);animation-timing-function:ease-out } 29.21% { opacity:1;transform:none } 92.86% { opacity:1;transform:none;animation-timing-function:ease-in } 96.79% { opacity:0;transform:translateY(4px) } 100% { opacity:0;transform:translateY(4px) } }
+    .a432c616 { animation: a432c616 14s linear infinite; }
+    @keyframes a432c617 { 0% { opacity:0;transform:translateY(4px);animation-timing-function:step-end } 28.00% { opacity:0;transform:translateY(4px);animation-timing-function:ease-out } 30.50% { opacity:1;transform:none } 92.86% { opacity:1;transform:none;animation-timing-function:ease-in } 96.79% { opacity:0;transform:translateY(4px) } 100% { opacity:0;transform:translateY(4px) } }
+    .a432c617 { animation: a432c617 14s linear infinite; }
+    @keyframes a432c618 { 0% { opacity:0;transform:translateY(4px);animation-timing-function:step-end } 28.64% { opacity:0;transform:translateY(4px);animation-timing-function:ease-out } 31.14% { opacity:1;transform:none } 92.86% { opacity:1;transform:none;animation-timing-function:ease-in } 96.79% { opacity:0;transform:translateY(4px) } 100% { opacity:0;transform:translateY(4px) } }
+    .a432c618 { animation: a432c618 14s linear infinite; }
+    @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
   </style>
   <rect width="880" height="483" rx="12" fill="#0d1117"/>
   <rect x=".5" y=".5" width="879" height="482" rx="11.5" fill="none" stroke="#30363d"/>
@@ -24,22 +61,22 @@
   <text x="440.0" y="20" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="12" fill="#8b949e">~/my_app — schema_reaper scan</text>
 
   <text x="22" y="70" class="t"><tspan fill="#3fb950" font-weight="700">$</tspan></text>
-  <text x="37.6" y="70" class="t cmd" fill="#e6edf3">bundle exec schema_reaper scan</text>
-  <rect class="cursor" x="37.6" y="58" width="7.8" height="15" fill="#e6edf3"/>
-  <text x="22" y="108" class="t l" xml:space="preserve" style="animation-delay:2.39s"><tspan fill="#e6edf3">  </tspan><tspan fill="#e6edf3" font-weight="700">schema_reaper</tspan><tspan fill="#e6edf3">  </tspan><tspan fill="#e6edf3" font-weight="700">3 findings across 2 tables</tspan></text>
-  <text x="22" y="127" class="t l" xml:space="preserve" style="animation-delay:2.48s"><tspan fill="#8b949e">  missing_fk_index 1 · always_null_column 1 · dead_table 1</tspan></text>
-  <text x="22" y="146" class="t l" xml:space="preserve" style="animation-delay:2.57s"><tspan fill="#8b949e">  ~46.9 KB reclaimable</tspan></text>
-  <text x="22" y="184" class="t l" xml:space="preserve" style="animation-delay:2.75s"><tspan fill="#e6edf3">  </tspan><tspan fill="#d2a8ff" font-weight="700">users</tspan></text>
-  <text x="22" y="203" class="t l" xml:space="preserve" style="animation-delay:2.84s"><tspan fill="#e6edf3">    </tspan><tspan fill="#e3b341">█████</tspan><tspan fill="#e6edf3">  90%  </tspan><tspan fill="#e3b341" font-weight="700">medium</tspan><tspan fill="#e6edf3">  </tspan><tspan fill="#e6edf3" font-weight="700">missing_fk_index   </tspan><tspan fill="#e6edf3">  team_id</tspan></text>
-  <text x="22" y="222" class="t l" xml:space="preserve" style="animation-delay:2.93s"><tspan fill="#8b949e">           team_id has no covering index (declared foreign key constraint)</tspan></text>
-  <text x="22" y="241" class="t l" xml:space="preserve" style="animation-delay:3.02s"><tspan fill="#3fb950">           → add_index :users, :team_id</tspan></text>
-  <text x="22" y="260" class="t l" xml:space="preserve" style="animation-delay:3.11s"><tspan fill="#e6edf3">    </tspan><tspan fill="#ff7b72">████░</tspan><tspan fill="#e6edf3">  85%  </tspan><tspan fill="#ff7b72" font-weight="700">high  </tspan><tspan fill="#e6edf3">  </tspan><tspan fill="#e6edf3" font-weight="700">always_null_column </tspan><tspan fill="#e6edf3">  api_key</tspan><tspan fill="#8b949e">  46.9 KB</tspan></text>
-  <text x="22" y="279" class="t l" xml:space="preserve" style="animation-delay:3.20s"><tspan fill="#8b949e">           pg_stats.null_frac = 1.0 across ~3000 row(s) · column carries no data</tspan></text>
-  <text x="22" y="298" class="t l" xml:space="preserve" style="animation-delay:3.29s"><tspan fill="#3fb950">           → verify with `SELECT count(api_key) FROM users` then stage a removal</tspan></text>
-  <text x="22" y="336" class="t l" xml:space="preserve" style="animation-delay:3.47s"><tspan fill="#e6edf3">  </tspan><tspan fill="#d2a8ff" font-weight="700">stale_exports</tspan></text>
-  <text x="22" y="355" class="t l" xml:space="preserve" style="animation-delay:3.56s"><tspan fill="#e6edf3">    </tspan><tspan fill="#ff7b72">████░</tspan><tspan fill="#e6edf3">  85%  </tspan><tspan fill="#ff7b72" font-weight="700">high  </tspan><tspan fill="#e6edf3">  </tspan><tspan fill="#e6edf3" font-weight="700">dead_table</tspan></text>
-  <text x="22" y="374" class="t l" xml:space="preserve" style="animation-delay:3.65s"><tspan fill="#8b949e">           no model or query reference to `stale_exports` in scanned code · table holds ~0 row(s)</tspan></text>
-  <text x="22" y="393" class="t l" xml:space="preserve" style="animation-delay:3.74s"><tspan fill="#3fb950">           → confirm no external consumer, then `drop_table :stale_exports`</tspan></text>
-  <text x="22" y="431" class="t l" xml:space="preserve" style="animation-delay:3.92s"><tspan fill="#e6edf3">  </tspan><tspan fill="#ff7b72" font-weight="700">high 2</tspan><tspan fill="#e6edf3">   </tspan><tspan fill="#e3b341" font-weight="700">medium 1</tspan></text>
-  <text x="22" y="450" class="t l" xml:space="preserve" style="animation-delay:4.01s"><tspan fill="#8b949e">  missing_fk_index 1 · always_null_column 1 · dead_table 1</tspan></text>
+  <text x="37.6" y="70" class="t cmd a432c61" fill="#e6edf3">bundle exec schema_reaper scan</text>
+  <rect class="cursor a432c62" x="271.6" y="58" width="7.8" height="15" fill="#e6edf3"/>
+  <text x="22" y="108" class="t l a432c63" xml:space="preserve"><tspan fill="#e6edf3">  </tspan><tspan fill="#e6edf3" font-weight="700">schema_reaper</tspan><tspan fill="#e6edf3">  </tspan><tspan fill="#e6edf3" font-weight="700">3 findings across 2 tables</tspan></text>
+  <text x="22" y="127" class="t l a432c64" xml:space="preserve"><tspan fill="#8b949e">  missing_fk_index 1 · always_null_column 1 · dead_table 1</tspan></text>
+  <text x="22" y="146" class="t l a432c65" xml:space="preserve"><tspan fill="#8b949e">  ~46.9 KB reclaimable</tspan></text>
+  <text x="22" y="184" class="t l a432c66" xml:space="preserve"><tspan fill="#e6edf3">  </tspan><tspan fill="#d2a8ff" font-weight="700">users</tspan></text>
+  <text x="22" y="203" class="t l a432c67" xml:space="preserve"><tspan fill="#e6edf3">    </tspan><tspan fill="#e3b341">█████</tspan><tspan fill="#e6edf3">  90%  </tspan><tspan fill="#e3b341" font-weight="700">medium</tspan><tspan fill="#e6edf3">  </tspan><tspan fill="#e6edf3" font-weight="700">missing_fk_index   </tspan><tspan fill="#e6edf3">  team_id</tspan></text>
+  <text x="22" y="222" class="t l a432c68" xml:space="preserve"><tspan fill="#8b949e">           team_id has no covering index (declared foreign key constraint)</tspan></text>
+  <text x="22" y="241" class="t l a432c69" xml:space="preserve"><tspan fill="#3fb950">           → add_index :users, :team_id</tspan></text>
+  <text x="22" y="260" class="t l a432c610" xml:space="preserve"><tspan fill="#e6edf3">    </tspan><tspan fill="#ff7b72">████░</tspan><tspan fill="#e6edf3">  85%  </tspan><tspan fill="#ff7b72" font-weight="700">high  </tspan><tspan fill="#e6edf3">  </tspan><tspan fill="#e6edf3" font-weight="700">always_null_column </tspan><tspan fill="#e6edf3">  api_key</tspan><tspan fill="#8b949e">  46.9 KB</tspan></text>
+  <text x="22" y="279" class="t l a432c611" xml:space="preserve"><tspan fill="#8b949e">           pg_stats.null_frac = 1.0 across ~3000 row(s) · column carries no data</tspan></text>
+  <text x="22" y="298" class="t l a432c612" xml:space="preserve"><tspan fill="#3fb950">           → verify with `SELECT count(api_key) FROM users` then stage a removal</tspan></text>
+  <text x="22" y="336" class="t l a432c613" xml:space="preserve"><tspan fill="#e6edf3">  </tspan><tspan fill="#d2a8ff" font-weight="700">stale_exports</tspan></text>
+  <text x="22" y="355" class="t l a432c614" xml:space="preserve"><tspan fill="#e6edf3">    </tspan><tspan fill="#ff7b72">████░</tspan><tspan fill="#e6edf3">  85%  </tspan><tspan fill="#ff7b72" font-weight="700">high  </tspan><tspan fill="#e6edf3">  </tspan><tspan fill="#e6edf3" font-weight="700">dead_table</tspan></text>
+  <text x="22" y="374" class="t l a432c615" xml:space="preserve"><tspan fill="#8b949e">           no model or query reference to `stale_exports` in scanned code · table holds ~0 row(s)</tspan></text>
+  <text x="22" y="393" class="t l a432c616" xml:space="preserve"><tspan fill="#3fb950">           → confirm no external consumer, then `drop_table :stale_exports`</tspan></text>
+  <text x="22" y="431" class="t l a432c617" xml:space="preserve"><tspan fill="#e6edf3">  </tspan><tspan fill="#ff7b72" font-weight="700">high 2</tspan><tspan fill="#e6edf3">   </tspan><tspan fill="#e3b341" font-weight="700">medium 1</tspan></text>
+  <text x="22" y="450" class="t l a432c618" xml:space="preserve"><tspan fill="#8b949e">  missing_fk_index 1 · always_null_column 1 · dead_table 1</tspan></text>
 </svg>
