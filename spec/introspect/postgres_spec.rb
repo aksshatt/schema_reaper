@@ -7,6 +7,14 @@
 RSpec.describe SchemaReaper::Introspect::Postgres do
   # No live database needed -- stubs the connection to exercise error
   # wrapping without a real Postgres instance.
+  it "explains a missing pg gem instead of failing with a NameError" do
+    allow(SchemaReaper::Introspect).to receive(:require).with("pg")
+                                                        .and_raise(LoadError, "cannot load such file -- pg")
+
+    expect { described_class.new("postgres://fake") }
+      .to raise_error(SchemaReaper::Error, /needs the `pg` gem/)
+  end
+
   describe "query error handling" do
     before { require "pg" }
 

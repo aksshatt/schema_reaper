@@ -6,21 +6,41 @@
   produce reports in four formats, a CI baseline gate, scheduled webhook and email reports, and
   staged removal migrations.</desc>
   <style>
-    .pop { opacity: 0; animation: pop .5s ease-out forwards; }
     .flow { stroke-dasharray: 6 6; animation: flow 1.2s linear infinite; }
-    @keyframes pop { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    .pulse { animation: pulse 2.4s ease-in-out 1.2s infinite; transform-box: fill-box; transform-origin: center; }
+    .grow { transform-box: fill-box; transform-origin: left center; }
+    .strike { stroke-dasharray: 200; }
+    .scan { opacity: 0; }
     @keyframes flow { to { stroke-dashoffset: -12; } }
-    @media (prefers-reduced-motion: reduce) { .pop { animation: none; opacity: 1; } .flow { animation: none; } }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
+    @keyframes blink { 50% { opacity: 0; } }
+    @keyframes a81f8e1 { 0% { opacity:0;transform:translateY(6px);animation-timing-function:step-end } 0.00% { opacity:0;transform:translateY(6px);animation-timing-function:ease-out } 4.17% { opacity:1;transform:none } 91.67% { opacity:1;transform:none;animation-timing-function:ease-in } 96.25% { opacity:0;transform:translateY(6px) } 100% { opacity:0;transform:translateY(6px) } }
+    .a81f8e1 { animation: a81f8e1 12s linear infinite; }
+    @keyframes a81f8e2 { 0% { opacity:0;transform:translateY(6px);animation-timing-function:step-end } 1.00% { opacity:0;transform:translateY(6px);animation-timing-function:ease-out } 5.17% { opacity:1;transform:none } 91.67% { opacity:1;transform:none;animation-timing-function:ease-in } 96.25% { opacity:0;transform:translateY(6px) } 100% { opacity:0;transform:translateY(6px) } }
+    .a81f8e2 { animation: a81f8e2 12s linear infinite; }
+    @keyframes a81f8e3 { 0% { opacity:0;transform:translateY(6px);animation-timing-function:step-end } 2.00% { opacity:0;transform:translateY(6px);animation-timing-function:ease-out } 6.17% { opacity:1;transform:none } 91.67% { opacity:1;transform:none;animation-timing-function:ease-in } 96.25% { opacity:0;transform:translateY(6px) } 100% { opacity:0;transform:translateY(6px) } }
+    .a81f8e3 { animation: a81f8e3 12s linear infinite; }
+    @keyframes a81f8e4 { 0% { opacity:0;transform:translateY(6px);animation-timing-function:step-end } 3.33% { opacity:0;transform:translateY(6px);animation-timing-function:ease-out } 7.50% { opacity:1;transform:none } 91.67% { opacity:1;transform:none;animation-timing-function:ease-in } 96.25% { opacity:0;transform:translateY(6px) } 100% { opacity:0;transform:translateY(6px) } }
+    .a81f8e4 { animation: a81f8e4 12s linear infinite; }
+    @keyframes a81f8e5 { 0% { opacity:0;transform:translateY(6px);animation-timing-function:step-end } 5.83% { opacity:0;transform:translateY(6px);animation-timing-function:ease-out } 10.00% { opacity:1;transform:none } 91.67% { opacity:1;transform:none;animation-timing-function:ease-in } 96.25% { opacity:0;transform:translateY(6px) } 100% { opacity:0;transform:translateY(6px) } }
+    .a81f8e5 { animation: a81f8e5 12s linear infinite; }
+    @keyframes a81f8e6 { 0% { opacity:0;transform:translateY(6px);animation-timing-function:step-end } 6.83% { opacity:0;transform:translateY(6px);animation-timing-function:ease-out } 11.00% { opacity:1;transform:none } 91.67% { opacity:1;transform:none;animation-timing-function:ease-in } 96.25% { opacity:0;transform:translateY(6px) } 100% { opacity:0;transform:translateY(6px) } }
+    .a81f8e6 { animation: a81f8e6 12s linear infinite; }
+    @keyframes a81f8e7 { 0% { opacity:0;transform:translateY(6px);animation-timing-function:step-end } 7.83% { opacity:0;transform:translateY(6px);animation-timing-function:ease-out } 12.00% { opacity:1;transform:none } 91.67% { opacity:1;transform:none;animation-timing-function:ease-in } 96.25% { opacity:0;transform:translateY(6px) } 100% { opacity:0;transform:translateY(6px) } }
+    .a81f8e7 { animation: a81f8e7 12s linear infinite; }
+    @keyframes a81f8e8 { 0% { opacity:0;transform:translateY(6px);animation-timing-function:step-end } 8.83% { opacity:0;transform:translateY(6px);animation-timing-function:ease-out } 13.00% { opacity:1;transform:none } 91.67% { opacity:1;transform:none;animation-timing-function:ease-in } 96.25% { opacity:0;transform:translateY(6px) } 100% { opacity:0;transform:translateY(6px) } }
+    .a81f8e8 { animation: a81f8e8 12s linear infinite; }
+    @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
   </style>
-  <g class="pop" style="animation-delay:0.00s">
+  <g class="pop a81f8e1">
       <rect x="20" y="48" width="250" height="70" rx="12" fill="#161b22" stroke="#30363d"/>
       <text x="40" y="78" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="16" font-weight="600" fill="#e6edf3">Live PostgreSQL</text>
       <text x="40" y="100" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="13" fill="#8b949e">schema · pg_stats · index scans</text></g>
-<g class="pop" style="animation-delay:0.12s">
+<g class="pop a81f8e2">
       <rect x="20" y="152" width="250" height="70" rx="12" fill="#161b22" stroke="#30363d"/>
       <text x="40" y="182" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="16" font-weight="600" fill="#e6edf3">Your codebase</text>
       <text x="40" y="204" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="13" fill="#8b949e">Prism AST · views · SQL strings</text></g>
-<g class="pop" style="animation-delay:0.24s">
+<g class="pop a81f8e3">
       <rect x="20" y="256" width="250" height="70" rx="12" fill="#161b22" stroke="#30363d" stroke-dasharray="5 4"/>
       <text x="40" y="286" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="16" font-weight="600" fill="#e6edf3">Runtime signal</text>
       <text x="40" y="308" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="13" fill="#8b949e">optional · sampled column reads</text></g>
@@ -31,24 +51,24 @@
 <path class="flow" d="M625 190.0 C 680 190.0, 675 148.0, 730 148.0" fill="none" stroke="#ff7b72" stroke-width="2" stroke-opacity=".7"/>
 <path class="flow" d="M625 190.0 C 680 190.0, 675 230.0, 730 230.0" fill="none" stroke="#ff7b72" stroke-width="2" stroke-opacity=".7"/>
 <path class="flow" d="M625 190.0 C 680 190.0, 675 312.0, 730 312.0" fill="none" stroke="#ff7b72" stroke-width="2" stroke-opacity=".7"/>
-<g class="pop" style="animation-delay:.4s">
+<g class="pop a81f8e4">
       <rect x="375" y="60" width="250" height="260" rx="16" fill="#2a1113" stroke="#ff7b72" stroke-width="1.5"/>
       <text x="399" y="94" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="17" font-weight="700" fill="#e6edf3">7 analyzers</text>
       <text x="399" y="114" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="12.5" fill="#8b949e">confidence · severity · reclaim</text>
       <text x="399" y="138" font-family="ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,'Liberation Mono',monospace" font-size="13" fill="#e6edf3"><tspan fill="#ff7b72">▸</tspan> dead_column</text><text x="399" y="160" font-family="ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,'Liberation Mono',monospace" font-size="13" fill="#e6edf3"><tspan fill="#ff7b72">▸</tspan> dead_table</text><text x="399" y="182" font-family="ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,'Liberation Mono',monospace" font-size="13" fill="#e6edf3"><tspan fill="#ff7b72">▸</tspan> unused_index</text><text x="399" y="204" font-family="ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,'Liberation Mono',monospace" font-size="13" fill="#e6edf3"><tspan fill="#ff7b72">▸</tspan> duplicate_index</text><text x="399" y="226" font-family="ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,'Liberation Mono',monospace" font-size="13" fill="#e6edf3"><tspan fill="#ff7b72">▸</tspan> missing_fk_index</text><text x="399" y="248" font-family="ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,'Liberation Mono',monospace" font-size="13" fill="#e6edf3"><tspan fill="#ff7b72">▸</tspan> always_null_column</text><text x="399" y="270" font-family="ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,'Liberation Mono',monospace" font-size="13" fill="#e6edf3"><tspan fill="#ff7b72">▸</tspan> single_value_column</text></g>
-<g class="pop" style="animation-delay:0.70s">
+<g class="pop a81f8e5">
       <rect x="730" y="34" width="250" height="64" rx="12" fill="#161b22" stroke="#30363d"/>
       <text x="748" y="61" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="14.5" font-weight="600" fill="#e6edf3">Reports</text>
       <text x="748" y="81" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="12.5" fill="#8b949e">terminal · markdown · json · sarif</text></g>
-<g class="pop" style="animation-delay:0.82s">
+<g class="pop a81f8e6">
       <rect x="730" y="116" width="250" height="64" rx="12" fill="#161b22" stroke="#30363d"/>
       <text x="748" y="143" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="14.5" font-weight="600" fill="#e6edf3">CI baseline gate</text>
       <text x="748" y="163" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="12.5" fill="#8b949e">fail only on new dead weight</text></g>
-<g class="pop" style="animation-delay:0.94s">
+<g class="pop a81f8e7">
       <rect x="730" y="198" width="250" height="64" rx="12" fill="#161b22" stroke="#30363d"/>
       <text x="748" y="225" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="14.5" font-weight="600" fill="#e6edf3">Scheduled report</text>
       <text x="748" y="245" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="12.5" fill="#8b949e">Slack-style webhook + email</text></g>
-<g class="pop" style="animation-delay:1.06s">
+<g class="pop a81f8e8">
       <rect x="730" y="280" width="250" height="64" rx="12" fill="#161b22" stroke="#30363d"/>
       <text x="748" y="307" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="14.5" font-weight="600" fill="#e6edf3">Staged migrations</text>
       <text x="748" y="327" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="12.5" fill="#8b949e">ignore first, drop later</text></g>

@@ -18,11 +18,24 @@
   plain-cron schedules never scanned. The task now runs the scan inline (with
   email delivered immediately) when the adapter is `:async`, and enqueues as
   before otherwise.
+- **A missing `pg` gem now gives a clear error.** `pg` is deliberately not a
+  runtime dependency (the gem uses the host app's own), but without it the
+  scan failed with `NameError: uninitialized constant ...::PG` from the
+  connection rescue. It now says to add `gem "pg"`.
+- **`min_age_days` in `.schema_reaper.yml` now takes effect.** It was defined
+  and documented since 1.0.0 but never read -- `dead_column` used its own
+  hardcoded 14-day threshold for trusting runtime data. The analyzer now reads
+  the config key (default still 14, so nothing changes unless you set it).
 
 ### Changed
 - README rewritten around a quickstart, with animated SVG illustrations
   (`docs/assets/`, excluded from the packaged gem) and corrected details on
-  scheduling, the manual trigger's cooldown, CI and gem awareness.
+  scheduling, the manual trigger's cooldown, CI and gem awareness. Diagrams
+  for each major section; animations loop with a long hold on the finished
+  frame, since GitHub can't start a README image's animation on scroll.
+  Documents the `pg` requirement, that only the `public` schema is scanned, and
+  that lists in `.schema_reaper.yml` replace their defaults, and what
+  `min_age_days` controls.
 
 ## [2.0.0] - 2026-09-23
 
