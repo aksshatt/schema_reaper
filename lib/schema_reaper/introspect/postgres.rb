@@ -1,7 +1,18 @@
 # frozen_string_literal: true
 
 module SchemaReaper
+  # Reads a live database's schema and statistics. PostgreSQL only for now.
   module Introspect
+    # `pg` is deliberately not a runtime dependency -- the host app already
+    # bundles its own (every Rails + PostgreSQL app does), and pinning a second
+    # version here would fight it. Without this rescue a missing gem surfaces
+    # as a baffling NameError instead.
+    def self.require_pg!
+      require "pg"
+    rescue LoadError
+      raise Error, "schema_reaper needs the `pg` gem to talk to PostgreSQL -- add `gem \"pg\"` to your Gemfile"
+    end
+
     # Reads live schema + planner statistics from PostgreSQL using the `pg` gem
     # directly, so the host app does not need to boot Rails.
     class Postgres
@@ -22,12 +33,10 @@ module SchemaReaper
       COLUMN_SEPARATOR = 31.chr
 
       def initialize(url)
-        require "pg" # load first so the PG::Error rescue below can resolve
+        Introspect.require_pg!
         raise Error, NO_URL if url.nil? || url.empty?
 
-        @conn = PG.connect(url)
-      rescue PG::Error => e
-        raise Error, "could not connect to the database: #{e.message.strip}"
+        @conn = connect(url)
       end
 
       def call
@@ -38,6 +47,15 @@ module SchemaReaper
       end
 
       private
+
+      # Kept out of #initialize: a `rescue PG::Error` there is evaluated for
+      # *any* exception, including require_pg!'s, and would itself raise NameError
+      # when pg is the thing that failed to load.
+      def connect(url)
+        PG.connect(url)
+      rescue PG::Error => e
+        raise Error, "could not connect to the database: #{e.message.strip}"
+      end
 
       # Cluster-wide cumulative index scans. Lets the unused-index analyzer tell
       # "this index is never used" apart from "this database has no query
