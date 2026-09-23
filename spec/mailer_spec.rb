@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "open3"
+
 RSpec.describe SchemaReaper::Mailer do
   around do |example|
     ActionMailer::Base.delivery_method = :test
@@ -33,5 +35,24 @@ RSpec.describe SchemaReaper::Mailer do
     expect do
       described_class.report_email(to: ["dev@example.com"], report: "x").deliver_now
     end.not_to raise_error
+  end
+
+  # The bug this guards against only exists across a real boot order, so it
+  # runs in a fresh process: in a Rails app the gem is required (Bundler.require)
+  # before the app's autoloader can see app/mailers/application_mailer.rb.
+  it "inherits an ApplicationMailer that is only defined after the gem is required" do
+    script = <<~RUBY
+      require "action_mailer"
+      require "schema_reaper"
+      class ApplicationMailer < ActionMailer::Base
+        default from: "team@app.example"
+      end
+      print [SchemaReaper::Mailer.superclass, SchemaReaper::Mailer.default_params[:from]].join(",")
+    RUBY
+    lib = File.expand_path("../lib", __dir__)
+    output, status = Open3.capture2e(RbConfig.ruby, "-I", lib, "-e", script)
+
+    expect(status).to be_success, output
+    expect(output).to eq("ApplicationMailer,team@app.example")
   end
 end

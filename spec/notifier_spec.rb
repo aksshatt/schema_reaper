@@ -90,6 +90,14 @@ RSpec.describe SchemaReaper::Notifier do
       expect(mail_message).to have_received(:deliver_later)
     end
 
+    it "delivers immediately when asked to, for callers running inline in a short-lived process" do
+      allow(mail_message).to receive(:deliver_now)
+      described_class.new([finding], config: config, mailer: mailer, mail_delivery: :now).deliver
+
+      expect(mail_message).to have_received(:deliver_now)
+      expect(mail_message).not_to have_received(:deliver_later)
+    end
+
     it "logs instead of raising when no mailer is available" do
       notifier = described_class.new([finding], config: config, mailer: nil)
       expect { notifier.deliver }.not_to raise_error

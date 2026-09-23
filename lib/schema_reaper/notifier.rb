@@ -22,11 +22,17 @@ module SchemaReaper
     # or because a caller genuinely wants email delivery skipped) is
     # respected rather than silently falling back to the auto-detected
     # SchemaReaper::Mailer via `||`.
-    def initialize(findings, config: AlertConfig.instance, http: Net::HTTP, mailer: :auto)
+    #
+    # `mail_delivery:` is :later (enqueue via ActiveJob, the normal case) or
+    # :now -- for a caller that is itself running inline in a short-lived
+    # process, where an in-process queue would be torn down before the mail
+    # job ever ran (see the schema_reaper:alert rake task).
+    def initialize(findings, config: AlertConfig.instance, http: Net::HTTP, mailer: :auto, mail_delivery: :later)
       @findings = findings
       @config = config
       @http = http
       @mailer = mailer == :auto ? default_mailer : mailer
+      @mail_delivery = mail_delivery
     end
 
     def deliver
@@ -38,8 +44,10 @@ module SchemaReaper
 
     private
 
+    # Mailer is autoloaded (see lib/schema_reaper.rb), and it can only be
+    # defined when ActionMailer is present -- check that, not Mailer itself.
     def default_mailer
-      defined?(Mailer) ? Mailer : nil
+      defined?(::ActionMailer::Base) ? Mailer : nil
     end
 
     def report_text
@@ -80,7 +88,8 @@ module SchemaReaper
         return
       end
 
-      @mailer.report_email(to: @config.emails, report: report_text).deliver_later
+      message = @mailer.report_email(to: @config.emails, report: report_text)
+      @mail_delivery == :now ? message.deliver_now : message.deliver_later
     rescue StandardError => e
       log_error("email delivery failed", e)
     end

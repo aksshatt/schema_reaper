@@ -14,6 +14,10 @@ require "action_mailer"
 ActiveJob::Base.queue_adapter = :test
 
 require "schema_reaper"
+# Mailer is autoloaded and picks its superclass on first reference. Resolve
+# it now, while no spec has defined a throwaway ::ApplicationMailer (the
+# generator specs do), so every example sees the same class.
+SchemaReaper.const_get(:Mailer)
 
 RSpec.configure do |config|
   config.example_status_persistence_file_path = ".rspec_status"
