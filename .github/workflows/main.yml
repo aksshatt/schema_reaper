@@ -10,8 +10,24 @@ jobs:
     runs-on: ubuntu-latest
     name: Ruby ${{ matrix.ruby }}
     strategy:
+      fail-fast: false
       matrix:
-        ruby: ['2.7', '3.0', '3.1', '3.2', '3.3']
+        ruby: ['2.7', '3.0', '3.1', '3.2', '3.3', '3.4', '4.0']
+
+    # The introspection specs are opt-in locally; CI always runs them against
+    # a throwaway database so catalog-query bugs are caught before release.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: schema_reaper_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+
+    env:
+      SCHEMA_REAPER_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/schema_reaper_test
 
     steps:
       - uses: actions/checkout@v4

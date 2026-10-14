@@ -21,7 +21,7 @@ module SchemaReaper
       def dead_in(table)
         table.columns.filter_map do |col|
           next if keep?(table, col)
-          next if used?(col.name)
+          next if column_used?(table.name, col.name)
           next if runtime.read?(table.name, col.name)
 
           finding(
@@ -33,7 +33,7 @@ module SchemaReaper
             bytes_per_row: col.bytes,
             evidence: evidence_for(table, col),
             suggested_fix: "Stage removal: `self.ignored_columns += %w[#{col.name}]` on the " \
-                           "model, deploy, then `remove_column :#{table.name}, :#{col.name}`."
+                           "model, deploy, then `remove_column #{sym(table.name)}, :#{col.name}`."
           )
         end
       end

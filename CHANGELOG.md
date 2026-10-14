@@ -1,5 +1,107 @@
 # Changelog
 
+## [2.1.0] - 2026-10-14
+
+### Fixed
+- **Introspection no longer mixes up same-named objects across schemas.**
+  Row counts were read from `pg_class` by name alone, foreign keys were joined
+  on constraint name alone (constraint names are only unique per table), and
+  the primary-key lookup resolved the table through `search_path`. All three
+  are now qualified by schema. Foreign keys are read from `pg_constraint`, so
+  composite keys keep their columns together.
+- **`ignore.columns` now applies to every column analyzer.** It was only
+  honoured by `dead_column`; `always_null_column`, `single_value_column` and
+  `missing_fk_index` ignored it.
+- **Partitioned tables are reported once, as the parent.** Each partition used
+  to appear as its own table -- and, unreferenced by name, got a `dead_table`
+  finding. The parent's row count is now summed from its partitions, and its
+  indexes' usage from the partitions' indexes, so `unused_index` no longer
+  flags every index on a partitioned table (PostgreSQL 12+).
+- **Stats-based findings say when they are estimates.** On tables larger than
+  ANALYZE's 30,000-row sample, `always_null_column` (0.85 -> 0.7) and
+  `single_value_column` (0.6 -> 0.5) lower their confidence and say so, and
+  `single_value_column` no longer claims "the same value in every row" for a
+  column that also holds NULLs.
+- **`missing_fk_index`** finds the referenced table in a non-public table's own
+  schema.
+- **Runtime `observed_days` no longer depends on line order.** Several
+  processes append to one log, so the span is now min..max timestamp rather
+  than first..last line.
+
+### Added
+- `schemas:` config key to scan PostgreSQL schemas besides `public`. Tables
+  outside `public` are reported as `schema.table`; `public` tables keep their
+  bare names, so existing baselines and ignore lists still match.
+- `sequence_exhaustion` analyzer (CYCLE and descending sequences excluded): a serial/IDENTITY sequence past 50% (medium)
+  or 75% (high) of its column type's range -- e.g. an `integer` key fed by a
+  bigint sequence.
+- `duplicate_foreign_key` analyzer: two FK constraints on the same columns
+  referencing the same key, with the same ON UPDATE / ON DELETE, MATCH and
+  deferrability (anything else changes behaviour when dropped). A validated
+  copy is kept over a NOT VALID one.
+- `--only` / `--except` to choose analyzers (custom ones included), and a
+  `min_confidence` config key used by every command.
+- `generate-migration TABLE --index NAME` (concurrent `remove_index` with
+  `disable_ddl_transaction!`; the migration checks at run time whether the
+  index is partitioned, which PostgreSQL can't drop concurrently, and drops it
+  plainly then) and `generate-migration TABLE` (`drop_table`). The
+  `unused_index` / `duplicate_index` fixes say the same for partitioned
+  indexes.
+- The runtime tracker also samples tables read by executed SQL (`track_sql:`,
+  on by default; FROM / JOIN / UPDATE, not INSERT targets, so a write-only
+  table can still be found), so a table read only through raw SQL isn't
+  reported dead.
+- The runtime log rotates to `<path>.1` past `runtime_log_max_bytes` (default
+  50 MB), under a file lock so concurrent workers can't rotate twice; both
+  generations are read.
+- `schema_reaper doctor`: checks the connection, statistics age, tables never
+  `ANALYZE`d, query history, replica status, runtime log length, expired
+  baseline entries, the schema file and alert config.
+- `schema_reaper explain ID` (full or partial id): evidence, confidence,
+  reclaim, schema line, baseline status and the `generate-migration` command.
+- `# schema_reaper:keep TARGET -- reason` comments in code silence findings.
+- `column_scope: model` (opt-in): a column name seen only in a model file
+  counts for that model's table and the tables it mentions, not every table.
+  Models are identified by their full class path (`Admin::User` is not
+  `User`); STI subclasses map to their parent's table (resolved the way Ruby
+  resolves the constant), namespaced models to both possible defaults, and
+  abstract bases, POROs and concerns stay shared.
+- Baseline entries carry an optional reason and expiry (`baseline --reason
+  --expires YYYY-MM-DD`); `scan --ci` fails on expired ones again, and passing
+  `--reason` / `--expires` renews them. `baseline --prune` drops resolved
+  entries without accepting new findings. With `--only` / `--except`,
+  `baseline` replaces or prunes only those analyzers' entries. The 2.0
+  `{"ids": [...]}` file is still read, and the file keeps an `ids` key
+  (unexpired entries) so a 2.0.x gem sharing it still works -- though 2.0.x
+  ignores reasons and expiry, and rewrites the file in the old format if it
+  runs `baseline`.
+- Scheduled reports say what changed since the last one (via `Rails.cache`);
+  `config.alert_on = :changes` sends only then. A report only counts as sent
+  once a channel accepted it -- a non-2xx webhook response is a failure -- so
+  a failed delivery is retried next run instead of suppressed.
+- Slack webhooks get a Block Kit summary instead of a Markdown table Slack
+  can't render; other receivers keep the full `{"text": ...}` report
+  (`config.webhook_format`).
+- Gem awareness covers solid_queue, solid_cache, solid_cable, good_job,
+  delayed_job_active_record, flipper-active_record, acts-as-taggable-on,
+  doorkeeper, noticed, activerecord-session_store, discard, acts_as_list and
+  ancestry. Every analyzer now leaves a gem-owned table's columns alone.
+- Per-file scan cache (`scan_cache:`), so repeat scans only re-parse changed
+  files. Keyed by a SHA-256 digest, so it survives across processes.
+- SARIF results point at the defining line in `db/schema.rb` or
+  `db/structure.sql` instead of the top of `db/schema.rb`.
+- `--color` / `--no-color` works on every command.
+
+### Changed
+- Column byte estimates use `pg_stats.avg_width` scaled by the non-NULL share
+  when the table has been analysed, instead of a fixed per-type guess (16
+  bytes for text/jsonb) that also counted NULLs as full width. An all-NULL
+  column is estimated at ~0 bytes.
+- `unused_index` evidence notes that `idx_scan` is per server, so indexes used
+  only on read replicas look unused on the primary.
+- CI tests Ruby 3.4 and 4.0 too, and runs the live introspection specs against
+  a PostgreSQL 16 service.
+
 ## [2.0.1] - 2026-09-23
 
 ### Fixed

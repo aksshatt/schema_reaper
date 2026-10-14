@@ -24,6 +24,7 @@ module SchemaReaper
           next unless col.single_value?
           next if table.primary_key?(col.name)
           next if config.always_keep_columns.include?(col.name)
+          next if ignored_column?(col.name)
           next if gem_reserved?(table.name, col.name)
 
           finding(
@@ -31,15 +32,26 @@ module SchemaReaper
             table: table.name,
             column: col.name,
             severity: :low,
-            confidence: 0.6,
+            confidence: sampled_stats?(table) ? 0.5 : 0.6,
             bytes_per_row: col.bytes,
-            evidence: [
-              "pg_stats.n_distinct = 1 across ~#{table.row_count} row(s)",
-              "column has the same value in every row"
-            ],
+            evidence: evidence_for(table, col),
             suggested_fix: "confirm the value is not a meaningful default before removing"
           )
         end
+      end
+
+      # n_distinct counts non-null values only, so "one value" and "the same
+      # value in every row" are different claims when some rows are NULL.
+      def evidence_for(table, col)
+        nulls = col.null_fraction.to_f
+        ev = ["pg_stats.n_distinct = 1 across ~#{table.row_count} row(s)"]
+        ev << if nulls.positive?
+                "one distinct non-null value; #{(nulls * 100).round(1)}% of rows are NULL"
+              else
+                "column has the same value in every row"
+              end
+        ev << "estimated from a #{STATS_SAMPLE_ROWS}-row ANALYZE sample" if sampled_stats?(table)
+        ev
       end
     end
   end

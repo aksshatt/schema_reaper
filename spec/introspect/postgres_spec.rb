@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-# Exercises the live-database introspection layer. CI has no PostgreSQL service,
-# so these specs are opt-in — point them at a throwaway database:
+# Exercises the live-database introspection layer. CI runs these against a
+# PostgreSQL service; locally they are opt-in — point them at a throwaway database:
 #
 #   SCHEMA_REAPER_TEST_DATABASE_URL=postgres://localhost/schema_reaper_test bundle exec rspec
 RSpec.describe SchemaReaper::Introspect::Postgres do
@@ -37,7 +37,7 @@ RSpec.describe SchemaReaper::Introspect::Postgres do
       allow(conn).to receive(:exec_params).and_raise(PG::Error, "no such relation")
       introspector = introspector_with(conn)
 
-      expect(introspector.send(:primary_key_for, "ghost_table")).to be_nil
+      expect(introspector.send(:primary_key_for, "public", "ghost_table")).to be_nil
     end
 
     it "wraps a real connection failure as SchemaReaper::Error, not a raw PG::ConnectionBad" do
@@ -201,6 +201,159 @@ RSpec.describe SchemaReaper::Introspect::Postgres do
       expect(always_present.null_fraction).to eq(0.0)
       expect(sometimes_null.null_fraction).to be_within(0.15).of(0.5)
       expect(sometimes_null.distinct_values).not_to be_nil
+    end
+
+    it "uses pg_stats.avg_width for column bytes once analysed" do
+      expect(analysed_table.column("always_present").bytes).to eq(2) # 'x' = 1-byte header + 1 byte
+    end
+
+    # Same table name in two schemas, each with a same-named FK constraint and
+    # a different row count -- the shape that made unqualified lookups mix
+    # them up.
+    describe "schema qualification" do
+      before(:all) do
+        @conn.exec(<<~SQL)
+          DROP SCHEMA IF EXISTS sr_other CASCADE;
+          DROP TABLE IF EXISTS sr_twin, sr_parent CASCADE;
+          CREATE SCHEMA sr_other;
+          CREATE TABLE sr_parent (id bigserial PRIMARY KEY);
+          CREATE TABLE sr_twin (id bigserial PRIMARY KEY, parent_id bigint,
+            CONSTRAINT sr_fk FOREIGN KEY (parent_id) REFERENCES sr_parent (id));
+          CREATE TABLE sr_other.sr_twin (code text PRIMARY KEY, other_parent_id bigint,
+            CONSTRAINT sr_fk FOREIGN KEY (other_parent_id) REFERENCES sr_parent (id),
+            CONSTRAINT sr_fk_dup FOREIGN KEY (other_parent_id) REFERENCES sr_parent (id));
+          INSERT INTO sr_other.sr_twin SELECT g::text, NULL FROM generate_series(1, 500) g;
+          ANALYZE sr_twin; ANALYZE sr_other.sr_twin;
+          -- An integer key whose sequence is 90% through the integer range.
+          DROP TABLE IF EXISTS sr_legacy;
+          CREATE TABLE sr_legacy (id serial PRIMARY KEY);
+          SELECT setval('sr_legacy_id_seq', 1932735283);
+        SQL
+      end
+
+      after(:all) do
+        @conn&.exec("DROP SCHEMA IF EXISTS sr_other CASCADE")
+        @conn&.exec("DROP TABLE IF EXISTS sr_twin, sr_parent, sr_legacy CASCADE")
+      end
+
+      let(:db) { described_class.new(db_url, schemas: %w[public sr_other]).call }
+
+      it "keeps each schema's row count, primary key and foreign keys to itself" do
+        pub = db.table("sr_twin")
+        other = db.table("sr_other.sr_twin")
+
+        expect(pub.row_count).to eq(0)
+        expect(other.row_count).to be_within(50).of(500)
+        expect(pub.primary_key_columns).to eq(%w[id])
+        expect(other.primary_key_columns).to eq(%w[code])
+        expect(pub.foreign_keys).to eq(%w[parent_id])
+        expect(other.foreign_keys).to eq(%w[other_parent_id])
+        expect(other.foreign_key_constraints.map(&:name)).to eq(%w[sr_fk sr_fk_dup])
+        expect(other.foreign_key_constraints.map(&:references).uniq).to eq(%w[sr_parent])
+      end
+
+      it "only scans public by default" do
+        expect(described_class.new(db_url).call.table("sr_other.sr_twin")).to be_nil
+      end
+
+      it "reports a column-owned sequence against the column type's ceiling" do
+        seq = db.sequences.find { |s| s.table == "sr_legacy" }
+
+        expect(seq.column).to eq("id")
+        expect(seq.column_type).to eq("integer")
+        expect(seq.max_value).to eq(2_147_483_647)
+        expect(seq.used_fraction).to be_within(0.01).of(0.9)
+      end
+    end
+
+    describe "accuracy on partitions, FK behaviour and sequences" do
+      before(:all) do
+        @conn.exec(<<~SQL)
+          DROP TABLE IF EXISTS sr_events, sr_fk_parent, sr_fk_child, sr_cyc CASCADE;
+          CREATE TABLE sr_events (id bigint, kind text, at date NOT NULL) PARTITION BY RANGE (at);
+          CREATE TABLE sr_events_2026_01 PARTITION OF sr_events FOR VALUES FROM ('2026-01-01') TO ('2026-02-01');
+          CREATE TABLE sr_events_2026_02 PARTITION OF sr_events FOR VALUES FROM ('2026-02-01') TO ('2026-03-01');
+          CREATE INDEX idx_sr_events_kind ON sr_events (kind);
+          INSERT INTO sr_events SELECT g, 'k' || (g % 3), DATE '2026-01-01' + (g % 50) FROM generate_series(1, 1000) g;
+          ANALYZE sr_events;
+
+          CREATE TABLE sr_fk_parent (id bigint PRIMARY KEY);
+          CREATE TABLE sr_fk_child (id bigint PRIMARY KEY, parent_id bigint,
+            CONSTRAINT fk_a FOREIGN KEY (parent_id) REFERENCES sr_fk_parent (id),
+            CONSTRAINT fk_b FOREIGN KEY (parent_id) REFERENCES sr_fk_parent (id) ON DELETE CASCADE,
+            CONSTRAINT fk_c FOREIGN KEY (parent_id) REFERENCES sr_fk_parent (id));
+
+          CREATE TABLE sr_cyc (id serial PRIMARY KEY);
+          ALTER SEQUENCE sr_cyc_id_seq CYCLE;
+          SELECT setval('sr_cyc_id_seq', 2000000000);
+        SQL
+        # Use the index from a separate connection and close it: before
+        # PostgreSQL 15 a backend's pending stats are only flushed when it
+        # goes idle again (or exits), so the long-lived @conn never would.
+        reader = PG.connect(url)
+        reader.exec("SET enable_seqscan = off; SELECT count(*) FROM sr_events WHERE kind = 'k1'")
+        reader.close
+      end
+
+      after(:all) { @conn&.exec("DROP TABLE IF EXISTS sr_events, sr_fk_parent, sr_fk_child, sr_cyc CASCADE") }
+
+      let(:db) { described_class.new(db_url).call }
+
+      it "reports a partitioned table once, with rows summed from its partitions" do
+        names = db.tables.map(&:name)
+        expect(names).to include("sr_events")
+        expect(names).not_to include("sr_events_2026_01", "sr_events_2026_02")
+        expect(db.table("sr_events").row_count).to be_within(50).of(1000)
+      end
+
+      it "counts a partitioned index's scans across its partitions" do
+        # pg_stat counters are flushed asynchronously; give them a moment
+        idx = nil
+        10.times do
+          idx = described_class.new(db_url).call.table("sr_events").indexes.find { |i| i.name == "idx_sr_events_kind" }
+          break if idx.scans.to_i.positive?
+
+          sleep 0.5
+        end
+        expect(idx.scans).to be_positive
+      end
+
+      it "treats same-column FKs with different ON DELETE as different constraints" do
+        fks = db.table("sr_fk_child").foreign_key_constraints.to_h { |fk| [fk.name, fk.behaviour] }
+        expect(fks["fk_a"]).to eq(fks["fk_c"])
+        expect(fks["fk_a"]).not_to eq(fks["fk_b"])
+
+        findings = SchemaReaper::Analyzers::DuplicateForeignKey.new(context_for(schema: db)).call
+        expect(findings.map(&:index)).to eq(["fk_c"])
+      end
+
+      it "marks an index on a partitioned parent as partitioned" do
+        idx = db.table("sr_events").indexes.find { |i| i.name == "idx_sr_events_kind" }
+        expect(idx.partitioned).to be(true)
+        expect(db.table("sr_fk_child").indexes.map(&:partitioned)).to all(be(false))
+      end
+
+      it "estimates ~0 bytes for an all-NULL column instead of the per-type guess" do
+        @conn.exec(<<~SQL)
+          DROP TABLE IF EXISTS sr_allnull;
+          CREATE TABLE sr_allnull (id bigserial PRIMARY KEY, notes text);
+          INSERT INTO sr_allnull (notes) SELECT NULL FROM generate_series(1, 200);
+          ANALYZE sr_allnull;
+        SQL
+        expect(described_class.new(db_url).call.table("sr_allnull").column("notes").bytes).to eq(0)
+      ensure
+        @conn.exec("DROP TABLE IF EXISTS sr_allnull")
+      end
+
+      it "skips a CYCLE sequence, which wraps instead of running out" do
+        expect(db.sequences.map(&:table)).not_to include("sr_cyc")
+      end
+
+      it "scales column bytes by the share of non-null rows" do
+        # analysed table from the top-level setup: sometimes_null is ~50% NULL, 'y' = 2 bytes
+        col = described_class.new(db_url).call.table("schema_reaper_analysed").column("sometimes_null")
+        expect(col.bytes).to eq(1)
+      end
     end
   end
 end

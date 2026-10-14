@@ -32,6 +32,8 @@ module SchemaReaper
 
       def missing_in(table)
         fk_columns(table).filter_map do |col|
+          next if ignored_column?(col)
+
           type_col = polymorphic_type_for(table, col)
 
           # A bare index on the id alone doesn't cover a polymorphic pair --
@@ -56,7 +58,7 @@ module SchemaReaper
       end
 
       def finding_for(table, col, type_col, declared:)
-        referent = declared ? nil : referent_table(col)
+        referent = declared ? nil : referent_table(col, table.name)
         confidence = confidence_for(declared, referent)
 
         finding(
@@ -97,9 +99,9 @@ module SchemaReaper
       end
 
       def fix_for(table, col, type_col)
-        return "add_index :#{table.name}, :#{col}" unless type_col
+        return "add_index #{sym(table.name)}, :#{col}" unless type_col
 
-        "add_index :#{table.name}, %i[#{type_col} #{col}]"
+        "add_index #{sym(table.name)}, %i[#{type_col} #{col}]"
       end
 
       def fk_columns(table)
@@ -109,7 +111,9 @@ module SchemaReaper
       # A table the column plausibly points at: account_id -> accounts,
       # company_id -> companies, address_id -> addresses. Absence is the signal
       # that a *_id name is not really a foreign key.
-      def referent_table(col)
+      # A table outside public looks in its own schema first:
+      # billing.invoices.account_id -> billing.accounts, then accounts.
+      def referent_table(col, from_table)
         return nil unless col.end_with?("_id")
 
         base = col[0..-4]
@@ -117,6 +121,8 @@ module SchemaReaper
 
         candidates = [base, "#{base}s", "#{base}es"]
         candidates << "#{base[0..-2]}ies" if base.end_with?("y")
+        ns = from_table.include?(".") ? from_table.split(".").first : nil
+        candidates = candidates.map { |c| "#{ns}.#{c}" } + candidates if ns
         candidates.find { |name| table_names.include?(name) }
       end
 

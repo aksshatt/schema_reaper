@@ -9,6 +9,7 @@ module SchemaReaper
   class Config
     DEFAULTS = {
       "database_url" => nil,          # falls back to ENV["DATABASE_URL"]
+      "schemas" => %w[public],        # PostgreSQL schemas to introspect
       "scan_paths" => %w[app lib config],
       "view_globs" => %w[
         app/**/*.erb app/**/*.haml app/**/*.slim app/**/*.jbuilder
@@ -20,9 +21,16 @@ module SchemaReaper
       "always_keep_columns" => %w[id created_at updated_at type],
       "gem_awareness" => true,        # auto-whitelist columns owned by known gems
       "min_age_days" => 14,
+      "min_confidence" => 0.0,        # drop findings below this from every command
+      "runtime_log_max_bytes" => 50 * 1024 * 1024, # rotate the usage log past this size
       "runtime_log" => ".schema_reaper/runtime.jsonl",
       "history_log" => ".schema_reaper/history.jsonl",
       "baseline" => ".schema_reaper/baseline.json",
+      "scan_cache" => ".schema_reaper/scan_cache.json", # per-file scan cache; null disables
+      # global: a column counts as used if its name appears anywhere.
+      # model:  a name in an app/models file only counts for that model's
+      #         table and the tables it mentions -- stricter, finds more.
+      "column_scope" => "global",
       "database_yml" => "config/database.yml", # Rails fallback for the connection
       "require" => [] # extra files to load (custom analyzers)
     }.freeze
@@ -74,6 +82,18 @@ module SchemaReaper
       @data.dig("ignore", "tables").to_a
     end
 
+    def schemas
+      Array(@data["schemas"]).map(&:to_s)
+    end
+
+    def min_confidence
+      @data["min_confidence"].to_f
+    end
+
+    def runtime_log_max_bytes
+      @data["runtime_log_max_bytes"]
+    end
+
     def min_age_days
       @data["min_age_days"]
     end
@@ -88,6 +108,14 @@ module SchemaReaper
 
     def history_log
       @data["history_log"]
+    end
+
+    def scan_cache
+      @data["scan_cache"]
+    end
+
+    def column_scope
+      @data["column_scope"].to_s == "model" ? :model : :global
     end
 
     def gem_awareness?
