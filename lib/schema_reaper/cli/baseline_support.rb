@@ -8,6 +8,14 @@ module SchemaReaper
     module BaselineSupport
       private
 
+      def report_written(findings, scope)
+        console.ok("recorded #{findings.size} finding#{"s" unless findings.size == 1} " \
+                   "as the accepted baseline")
+        console.info("file: #{config.baseline_path}")
+        console.info("only #{scope.join(", ")} entries were replaced; other analyzers' are unchanged") if scope
+        console.info("`scan --ci` now fails only on findings that appear after this point.")
+      end
+
       def report_pruned(dropped)
         return console.ok("nothing to prune -- every baseline entry still occurs") if dropped.empty?
 

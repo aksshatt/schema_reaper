@@ -38,21 +38,20 @@ module SchemaReaper
     end
 
     desc "baseline", "Write current findings to the baseline file"
-    option :reason, type: :string, desc: "why these findings are accepted (stored on newly added entries)"
-    option :expires, type: :string, desc: "YYYY-MM-DD after which `scan --ci` fails on them again"
+    option :reason, type: :string, desc: "why these findings are accepted (set on new and expired entries)"
+    option :expires, type: :string, desc: "YYYY-MM-DD after which `scan --ci` fails on them again " \
+                                          "(renews expired entries)"
     option :prune, type: :boolean, default: false,
                    desc: "only drop entries for findings that no longer occur; accept nothing new"
     def baseline
       findings = run
       store = Baseline.new(config.baseline_path)
       console.title("baseline")
-      return report_pruned(store.prune(findings)) if options[:prune]
+      scope = runner.selected_types
+      return report_pruned(store.prune(findings, scope: scope)) if options[:prune]
 
-      store.write(findings, reason: options[:reason], expires_on: parse_date(options[:expires]))
-      console.ok("recorded #{findings.size} finding#{"s" unless findings.size == 1} " \
-                 "as the accepted baseline")
-      console.info("file: #{config.baseline_path}")
-      console.info("`scan --ci` now fails only on findings that appear after this point.")
+      store.write(findings, reason: options[:reason], expires_on: parse_date(options[:expires]), scope: scope)
+      report_written(findings, scope)
     end
 
     desc "trend", "Append a snapshot and print progress over time"
@@ -122,9 +121,13 @@ module SchemaReaper
       @config ||= Config.load(options[:config])
     end
 
+    def runner(min_confidence: nil)
+      @runner ||= Runner.new(config: config, only: options[:only], except: options[:except],
+                             min_confidence: min_confidence)
+    end
+
     def run(min_confidence: nil)
-      Runner.new(config: config, only: options[:only], except: options[:except],
-                 min_confidence: min_confidence).run
+      runner(min_confidence: min_confidence).run
     rescue SchemaReaper::Error => e
       console.problem(e.message)
       exit 1

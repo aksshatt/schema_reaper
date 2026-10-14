@@ -35,8 +35,7 @@ module SchemaReaper
             confidence: 0.55,
             bytes_per_row: 0,
             evidence: evidence_for(ix),
-            suggested_fix: "remove_index #{sym(table.name)}, name: :#{ix.name}  " \
-                           "(use algorithm: :concurrently in production)"
+            suggested_fix: remove_index_fix(table, ix)
           )
         end
       end

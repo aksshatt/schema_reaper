@@ -104,7 +104,7 @@ module SchemaReaper
           file_tokens = entry["tokens"].to_set
           tokens.merge(file_tokens)
           keeps.merge!(entry["keeps"])
-          model_tables = entry["model"] && tables[entry["model"]["class"]]
+          model_tables = entry["model"] && tables[entry["model"]["path"]]
           if model_tables
             models << ModelFile.new(path: path, tables: model_tables, tokens: file_tokens)
           else
@@ -230,47 +230,71 @@ module SchemaReaper
 
         # `module Admin` wrapping the class namespaces it as much as `Admin::`
         modules = src[0...match.begin(0)].scan(/^\s*module\s+([\w:]+)/).flatten.flat_map { |m| m.split("::") }
+        parts = modules + match[1].split("::")
         {
-          "class" => match[1].split("::").last,
-          "namespace" => (modules + match[1].split("::")[0..-2]).join("_"),
-          "superclass" => match[2].sub(/\A::/, ""),
+          "path" => parts.join("::"),          # Admin::User -- the identity
+          "class" => parts.last,
+          "namespace" => parts[0..-2].join("_"),
+          "superclass" => match[2],            # as written; resolved like Ruby would
           "table" => src[/self\.table_name\s*=\s*["':]([\w.]+)/, 1],
           "abstract" => src.match?(/self\.abstract_class\s*=\s*true/)
         }
       end
 
+      # Keyed by the full class path: User and Admin::User are different
+      # models, and keying by the bare name let one overwrite the other.
+      # A class reopened in a second file merges its facts.
       def initialize(facts)
-        @by_class = facts.to_h { |f| [f["class"], f] }
+        @by_path = facts.each_with_object({}) do |f, h|
+          h[f["path"]] = h.key?(f["path"]) ? h[f["path"]].merge(f) { |_, old, new| old || new } : f
+        end
       end
 
-      # @return [Hash{String => Array<String>}] class name => tables; abstract
+      # @return [Hash{String => Array<String>}] class path => tables; abstract
       #   and unplaceable classes are absent
       def tables
-        @by_class.each_key.with_object({}) do |klass, out|
-          resolved = tables_for(klass, Set.new)
-          out[klass] = resolved if resolved&.any?
+        @by_path.each_key.with_object({}) do |path, out|
+          resolved = tables_for(path, Set.new)
+          out[path] = resolved if resolved&.any?
         end
       end
 
       private
 
-      def tables_for(klass, seen)
-        facts = @by_class[klass]
-        return nil if facts.nil? || facts["abstract"] || seen.include?(klass)
+      def tables_for(path, seen)
+        facts = @by_path[path]
+        return nil if facts.nil? || facts["abstract"] || seen.include?(path)
 
-        seen << klass
+        seen << path
         return [facts["table"]] if facts["table"]
-        return own_tables(facts) if root?(facts["superclass"])
+        return own_tables(facts) if root?(facts)
 
-        parent = facts["superclass"].split("::").last
-        tables_for(parent, seen) if @by_class.key?(parent) # STI: the parent's table
+        parent = resolve(facts["superclass"], facts["path"])
+        tables_for(parent, seen) if parent # STI: the parent's table
       end
 
-      def root?(superclass)
-        return true if AR_ROOTS.include?(superclass)
+      def root?(facts)
+        sup = facts["superclass"].sub(/\A::/, "")
+        return true if AR_ROOTS.include?(sup) || AR_ROOTS.include?(sup.split("::").last)
 
-        base = @by_class[superclass.split("::").last]
+        base = @by_path[resolve(facts["superclass"], facts["path"])]
         base && base["abstract"] && !base["table"]
+      end
+
+      # Ruby's constant lookup, approximately: `class Admin::Report < User`
+      # means Admin::User if that exists, else ::User. A leading :: skips
+      # straight to the top level. nil when no scanned model matches.
+      def resolve(name, from_path)
+        return @by_path.key?(name[2..]) ? name[2..] : nil if name.start_with?("::")
+
+        scope = from_path.split("::")[0..-2]
+        until scope.empty?
+          candidate = (scope + [name]).join("::")
+          return candidate if @by_path.key?(candidate)
+
+          scope = scope[0..-2]
+        end
+        @by_path.key?(name) ? name : nil
       end
 
       def own_tables(facts)

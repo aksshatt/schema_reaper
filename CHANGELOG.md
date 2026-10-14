@@ -42,11 +42,18 @@
 - `--only` / `--except` to choose analyzers (custom ones included), and a
   `min_confidence` config key used by every command.
 - `generate-migration TABLE --index NAME` (concurrent `remove_index` with
-  `disable_ddl_transaction!`) and `generate-migration TABLE` (`drop_table`).
-- The runtime tracker also samples tables named in executed SQL (`track_sql:`,
-  on by default), so a table used only through raw SQL isn't reported dead.
+  `disable_ddl_transaction!`; the migration checks at run time whether the
+  index is partitioned, which PostgreSQL can't drop concurrently, and drops it
+  plainly then) and `generate-migration TABLE` (`drop_table`). The
+  `unused_index` / `duplicate_index` fixes say the same for partitioned
+  indexes.
+- The runtime tracker also samples tables read by executed SQL (`track_sql:`,
+  on by default; FROM / JOIN / UPDATE, not INSERT targets, so a write-only
+  table can still be found), so a table read only through raw SQL isn't
+  reported dead.
 - The runtime log rotates to `<path>.1` past `runtime_log_max_bytes` (default
-  50 MB); both generations are read.
+  50 MB), under a file lock so concurrent workers can't rotate twice; both
+  generations are read.
 - `schema_reaper doctor`: checks the connection, statistics age, tables never
   `ANALYZE`d, query history, replica status, runtime log length, expired
   baseline entries, the schema file and alert config.
@@ -55,12 +62,19 @@
 - `# schema_reaper:keep TARGET -- reason` comments in code silence findings.
 - `column_scope: model` (opt-in): a column name seen only in a model file
   counts for that model's table and the tables it mentions, not every table.
-  STI subclasses map to their parent's table, namespaced models to both
-  possible defaults, and abstract bases, POROs and concerns stay shared.
+  Models are identified by their full class path (`Admin::User` is not
+  `User`); STI subclasses map to their parent's table (resolved the way Ruby
+  resolves the constant), namespaced models to both possible defaults, and
+  abstract bases, POROs and concerns stay shared.
 - Baseline entries carry an optional reason and expiry (`baseline --reason
-  --expires YYYY-MM-DD`); `scan --ci` fails on expired ones again. `baseline
-  --prune` drops resolved entries without accepting new findings. The 2.0
-  `{"ids": [...]}` file is still read.
+  --expires YYYY-MM-DD`); `scan --ci` fails on expired ones again, and passing
+  `--reason` / `--expires` renews them. `baseline --prune` drops resolved
+  entries without accepting new findings. With `--only` / `--except`,
+  `baseline` replaces or prunes only those analyzers' entries. The 2.0
+  `{"ids": [...]}` file is still read, and the file keeps an `ids` key
+  (unexpired entries) so a 2.0.x gem sharing it still works -- though 2.0.x
+  ignores reasons and expiry, and rewrites the file in the old format if it
+  runs `baseline`.
 - Scheduled reports say what changed since the last one (via `Rails.cache`);
   `config.alert_on = :changes` sends only then. A report only counts as sent
   once a channel accepted it -- a non-2xx webhook response is a failure -- so
@@ -73,7 +87,7 @@
   doorkeeper, noticed, activerecord-session_store, discard, acts_as_list and
   ancestry. Every analyzer now leaves a gem-owned table's columns alone.
 - Per-file scan cache (`scan_cache:`), so repeat scans only re-parse changed
-  files.
+  files. Keyed by a SHA-256 digest, so it survives across processes.
 - SARIF results point at the defining line in `db/schema.rb` or
   `db/structure.sql` instead of the top of `db/schema.rb`.
 - `--color` / `--no-color` works on every command.
@@ -81,7 +95,8 @@
 ### Changed
 - Column byte estimates use `pg_stats.avg_width` scaled by the non-NULL share
   when the table has been analysed, instead of a fixed per-type guess (16
-  bytes for text/jsonb) that also counted NULLs as full width.
+  bytes for text/jsonb) that also counted NULLs as full width. An all-NULL
+  column is estimated at ~0 bytes.
 - `unused_index` evidence notes that `idx_scan` is per server, so indexes used
   only on read replicas look unused on the primary.
 - CI tests Ruby 3.4 and 4.0 too, and runs the live introspection specs against

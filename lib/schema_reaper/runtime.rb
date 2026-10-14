@@ -30,10 +30,15 @@ module SchemaReaper
           File.foreach(file) do |line|
             row = JSON.parse(line)
             seen << row["key"]
-            ts = Time.parse(row["at"])
+            # Store writes UTC ISO8601 ("2026-01-05T00:00:00Z"), which sorts
+            # correctly as a string -- far cheaper than parsing every line of
+            # a log that can hold millions. Only the extremes are parsed.
+            ts = row["at"]
+            next unless ts.is_a?(String)
+
             first = ts if first.nil? || ts < first
             last = ts if last.nil? || ts > last
-          rescue JSON::ParserError, ArgumentError, TypeError
+          rescue JSON::ParserError
             next
           end
         end
@@ -43,7 +48,9 @@ module SchemaReaper
       def self.day_span(first, last)
         return 0 unless first && last
 
-        ((last - first) / 86_400).ceil
+        ((Time.parse(last) - Time.parse(first)) / 86_400).ceil
+      rescue ArgumentError
+        0
       end
 
       # Raw-SQL access recorded by the tracker's SQL subscriber, keyed
@@ -105,12 +112,18 @@ module SchemaReaper
         rotate_if_needed
       end
 
-      # A rename is atomic, and another process still holding the old file
-      # open just finishes its write into the rotated generation.
+      # Several processes (Puma workers) share one log, so the size check and
+      # the rename happen under an exclusive flock and the size is checked
+      # again once it's held: otherwise two workers that both saw an
+      # oversized log would rotate twice, and the second rename would put a
+      # nearly empty log over the full generation in <path>.1.
       def rotate_if_needed
         return unless @max_bytes && File.size?(@path).to_i > @max_bytes
 
-        File.rename(@path, self.class.rotated_path(@path))
+        File.open("#{@path}.lock", File::RDWR | File::CREAT, 0o644) do |lock|
+          lock.flock(File::LOCK_EX)
+          File.rename(@path, self.class.rotated_path(@path)) if File.size?(@path).to_i > @max_bytes
+        end
       rescue SystemCallError
         nil
       end
@@ -148,7 +161,11 @@ module SchemaReaper
 
       # The relation after FROM / JOIN / UPDATE / INTO, optionally
       # schema-qualified and double-quoted: "billing"."invoices" -> billing.invoices.
-      SQL_TABLE_RE = /\b(?:FROM|JOIN|UPDATE|INTO)\s+((?:"?\w+"?\.)?"?\w+"?)/i.freeze
+      #
+      # INSERT INTO targets are left out on purpose: a table that is only ever
+      # written (an audit log nobody reads) is exactly what dead_table should
+      # be able to find. INSERT ... SELECT still records its FROM tables.
+      SQL_TABLE_RE = /\b(?:FROM|JOIN|UPDATE)\s+((?:"?\w+"?\.)?"?\w+"?)/i.freeze
       SKIP_SQL_NAMES = %w[SCHEMA TRANSACTION].freeze
 
       def self.note_sql(sql, name = nil)

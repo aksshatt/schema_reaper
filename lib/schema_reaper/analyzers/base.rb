@@ -110,6 +110,19 @@ module SchemaReaper
         config.ignored_column?(name)
       end
 
+      # The removal command for an index. DROP INDEX CONCURRENTLY is refused
+      # on a partitioned index ("cannot drop partitioned index ...
+      # concurrently"), and its per-partition indexes can't be dropped on
+      # their own while attached, so the only path is a plain drop, which
+      # takes an ACCESS EXCLUSIVE lock on the parent and every partition.
+      def remove_index_fix(table, index)
+        base = "remove_index #{sym(table.name)}, name: :#{index.name}"
+        return "#{base}  (use algorithm: :concurrently in production)" unless index.partitioned
+
+        "#{base}  (partitioned index: CONCURRENTLY is not possible -- this locks the table " \
+          "and all partitions while it runs, so schedule it for a quiet window)"
+      end
+
       # A table name as a Ruby symbol literal for suggested fixes: :users, or
       # :"billing.invoices" for a table outside the public schema.
       def sym(name)

@@ -2,6 +2,7 @@
 
 require "json"
 require "fileutils"
+require "digest"
 
 module SchemaReaper
   module Static
@@ -11,13 +12,15 @@ module SchemaReaper
     class Cache
       # Bumped whenever what a file contributes changes, so a cache written by
       # an older scanner is discarded instead of trusted.
-      FORMAT = 2
+      FORMAT = 3
 
       # path - where to keep it, or nil to disable
       # key  - anything else that changes a file's result (gem version, ...)
       def initialize(path, key:)
         @path = path
-        @key = [FORMAT, key].hash.to_s
+        # A digest, not #hash: Ruby seeds #hash per process, so a key built
+        # with it never matches the one the previous run saved.
+        @key = Digest::SHA256.hexdigest(JSON.generate([FORMAT, key]))
         @files = load
       end
 

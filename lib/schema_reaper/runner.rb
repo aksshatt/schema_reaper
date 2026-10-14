@@ -46,6 +46,15 @@ module SchemaReaper
       end
     end
 
+    # Analyzer types this run covers, as strings, or nil when every analyzer
+    # runs. Callers that persist results (the baseline) use it to leave the
+    # other analyzers' records alone.
+    def selected_types
+      return nil if @only.nil? && @except.nil?
+
+      analyzers.map { |k| k.type.to_s }
+    end
+
     private
 
     # `# schema_reaper:keep TARGET` in code silences a finding. TARGET is a

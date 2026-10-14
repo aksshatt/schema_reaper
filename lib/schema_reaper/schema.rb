@@ -19,7 +19,9 @@ module SchemaReaper
     end
   end
 
-  Index = Struct.new(:name, :columns, :unique, :primary, :scans, :partial, keyword_init: true) do
+  # partitioned: an index on a partitioned parent (relkind 'I'). PostgreSQL
+  # cannot DROP one CONCURRENTLY, so removal advice differs.
+  Index = Struct.new(:name, :columns, :unique, :primary, :scans, :partial, :partitioned, keyword_init: true) do
     def covers?(other)
       columns.first(other.columns.length) == other.columns
     end

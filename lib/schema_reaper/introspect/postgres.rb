@@ -154,6 +154,7 @@ module SchemaReaper
       # the row (just its bit in the null bitmap), so scale by the share of
       # rows that actually hold a value.
       def measured_bytes(stats)
+        return 0 if stats[:null_frac].to_f >= 1.0 # all NULL: only the null-bitmap bit, avg_width 0
         return nil unless stats[:avg_width]
 
         (stats[:avg_width] * (1.0 - stats[:null_frac].to_f)).round
@@ -192,7 +193,8 @@ module SchemaReaper
       # treat a conditional index as if it covered every row.
       def indexes_for(namespace, table)
         exec(<<~SQL, [namespace, table]).map do |r|
-          SELECT i.relname AS name, ix.indisunique AS "unique", ix.indisprimary AS "primary",
+          SELECT i.relname AS name, (i.relkind = 'I') AS partitioned,
+                 ix.indisunique AS "unique", ix.indisprimary AS "primary",
                  (ix.indpred IS NOT NULL) AS partial,
                  #{partitioned_index_scans_sql} AS scans,
                  array_to_string(
@@ -207,12 +209,16 @@ module SchemaReaper
           WHERE t.relnamespace = $1::regnamespace AND t.relname = $2
           GROUP BY i.oid, i.relname, i.relkind, ix.indisunique, ix.indisprimary, ix.indpred, s.idx_scan
         SQL
-          Index.new(
-            name: r["name"], columns: r["cols"].split(COLUMN_SEPARATOR),
-            unique: r["unique"] == "t", primary: r["primary"] == "t", partial: r["partial"] == "t",
-            scans: r["scans"]&.to_i
-          )
+          build_index(r)
         end
+      end
+
+      def build_index(row)
+        Index.new(
+          name: row["name"], columns: row["cols"].split(COLUMN_SEPARATOR),
+          unique: row["unique"] == "t", primary: row["primary"] == "t", partial: row["partial"] == "t",
+          scans: row["scans"]&.to_i, partitioned: row["partitioned"] == "t"
+        )
       end
 
       # Every primary-key column, in key order. A composite key needs the whole

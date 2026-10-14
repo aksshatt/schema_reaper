@@ -41,4 +41,51 @@ RSpec.describe SchemaReaper::Baseline do
     expect(dropped).to eq(["dead_column/users/a"])
     expect(described_class.new(@path).entries.map(&:id)).to eq(["dead_column/users/b"])
   end
+
+  describe "review fixes" do
+    def finding_of(type, column)
+      SchemaReaper::Finding.new(type: type, table: "users", column: column, severity: :low,
+                                confidence: 0.5, bytes_per_row: 0, evidence: [], suggested_fix: "")
+    end
+
+    it "renews an expired entry when --reason/--expires are passed (mitkush #2)" do
+      described_class.new(@path).write([finding("a")], reason: "old", expires_on: Date.new(2020, 1, 1))
+      described_class.new(@path).write([finding("a")], reason: "renewed", expires_on: Date.new(2030, 1, 1))
+
+      entry = described_class.new(@path).entries.first
+      expect(entry.reason).to eq("renewed")
+      expect(entry.expires_on).to eq(Date.new(2030, 1, 1))
+      expect(described_class.new(@path).new_among([finding("a")])).to be_empty
+    end
+
+    it "keeps an unexpired entry's own reason when re-baselining" do
+      described_class.new(@path).write([finding("a")], reason: "original", expires_on: Date.new(2030, 1, 1))
+      described_class.new(@path).write([finding("a")], reason: "other")
+
+      expect(described_class.new(@path).entries.first.reason).to eq("original")
+    end
+
+    it "only replaces entries of the selected analyzers (mitkush #5)" do
+      described_class.new(@path).write([finding_of(:dead_column, "a"), finding_of(:unused_index, "b")])
+      described_class.new(@path).write([finding_of(:dead_column, "c")], scope: %w[dead_column])
+
+      expect(described_class.new(@path).entries.map(&:id))
+        .to eq(%w[dead_column/users/c unused_index/users/b])
+    end
+
+    it "only prunes entries of the selected analyzers" do
+      described_class.new(@path).write([finding_of(:dead_column, "a"), finding_of(:unused_index, "b")])
+      dropped = described_class.new(@path).prune([], scope: %w[dead_column])
+
+      expect(dropped).to eq(["dead_column/users/a"])
+      expect(described_class.new(@path).entries.map(&:id)).to eq(["unused_index/users/b"])
+    end
+
+    it "still writes the 2.0 ids key, holding only unexpired entries" do
+      described_class.new(@path).write([finding("a")])
+      described_class.new(@path).write([finding("a"), finding("b")], expires_on: Date.today - 1)
+
+      expect(JSON.parse(File.read(@path))["ids"]).to eq(["dead_column/users/a"])
+    end
+  end
 end

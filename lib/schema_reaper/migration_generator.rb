@@ -35,26 +35,57 @@ module SchemaReaper
     private
 
     # CREATE/DROP INDEX CONCURRENTLY cannot run inside a transaction, hence
-    # disable_ddl_transaction!. The down raises rather than guessing at the
-    # index's definition; recreating it is a copy from db/schema.rb.
+    # disable_ddl_transaction!. A partitioned index can't be dropped
+    # concurrently at all, and the generator never sees the database, so the
+    # migration checks pg_class itself when it runs. The down raises rather
+    # than guessing at the index's definition; recreate it from db/schema.rb.
     def drop_index
       down_msg = "recreate #{@index} on :#{@table} from db/schema.rb if you need it back"
       write "remove_#{@index}", <<~RUBY
         # frozen_string_literal: true
 
-        # Removes #{@index} without locking writes to #{@table}.
+        # Removes #{@index} -- concurrently, so writes to #{@table} are not
+        # blocked, unless it is a partitioned index, which PostgreSQL can only
+        # drop with a lock on the table and every partition.
         class Remove#{camelize(@index)} < ActiveRecord::Migration[#{migration_version}]
           disable_ddl_transaction!
 
           def up
-            remove_index #{@table.to_sym.inspect}, name: #{@index.to_sym.inspect}, algorithm: :concurrently, if_exists: true
+            if partitioned_index?
+              say "#{@index} is a partitioned index: dropping it without CONCURRENTLY (locks #{@table})"
+              remove_index #{@table.to_sym.inspect}, name: #{@index.to_sym.inspect}, if_exists: true
+            else
+              remove_index #{@table.to_sym.inspect}, name: #{@index.to_sym.inspect}, algorithm: :concurrently, if_exists: true
+            end
           end
 
           def down
             raise ActiveRecord::IrreversibleMigration, #{down_msg.inspect}
           end
+
+          #{partitioned_check}
         end
       RUBY
+    end
+
+    # The generated migration's private helper, indented to sit inside the
+    # class body (the first line lands where the template places it).
+    def partitioned_check
+      [
+        "private",
+        "",
+        "def partitioned_index?",
+        "  select_value(<<~SQL) == \"I\"",
+        "    SELECT relkind FROM pg_class WHERE oid = to_regclass(\#{connection.quote(#{qualified_index.inspect})})",
+        "  SQL",
+        "end"
+      ].map.with_index { |line, i| i.zero? || line.empty? ? line : "  #{line}" }.join("\n")
+    end
+
+    # An index lives in its table's schema; qualify it so to_regclass doesn't
+    # depend on search_path.
+    def qualified_index
+      @table.include?(".") ? "#{@table.split(".").first}.#{@index}" : @index
     end
 
     def drop_table

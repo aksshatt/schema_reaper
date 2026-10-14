@@ -327,6 +327,24 @@ RSpec.describe SchemaReaper::Introspect::Postgres do
         expect(findings.map(&:index)).to eq(["fk_c"])
       end
 
+      it "marks an index on a partitioned parent as partitioned" do
+        idx = db.table("sr_events").indexes.find { |i| i.name == "idx_sr_events_kind" }
+        expect(idx.partitioned).to be(true)
+        expect(db.table("sr_fk_child").indexes.map(&:partitioned)).to all(be(false))
+      end
+
+      it "estimates ~0 bytes for an all-NULL column instead of the per-type guess" do
+        @conn.exec(<<~SQL)
+          DROP TABLE IF EXISTS sr_allnull;
+          CREATE TABLE sr_allnull (id bigserial PRIMARY KEY, notes text);
+          INSERT INTO sr_allnull (notes) SELECT NULL FROM generate_series(1, 200);
+          ANALYZE sr_allnull;
+        SQL
+        expect(described_class.new(db_url).call.table("sr_allnull").column("notes").bytes).to eq(0)
+      ensure
+        @conn.exec("DROP TABLE IF EXISTS sr_allnull")
+      end
+
       it "skips a CYCLE sequence, which wraps instead of running out" do
         expect(db.sequences.map(&:table)).not_to include("sr_cyc")
       end
