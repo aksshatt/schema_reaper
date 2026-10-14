@@ -1,0 +1,167 @@
+name: Release
+
+# Publishes the gem when a version tag is pushed:
+#
+#   git tag -a v2.1.0 -m "schema_reaper 2.1.0"
+#   git push origin refs/tags/v2.1.0
+#
+# Publishing uses RubyGems Trusted Publishing (OIDC): no API key is stored in
+# the repo, and it works with the gem's rubygems_mfa_required. One-time setup
+# on rubygems.org -> schema_reaper -> Trusted publishers: repository
+# aksshatt/schema_reaper, workflow release.yml, environment release.
+# Add required reviewers to the `release` environment (repo Settings ->
+# Environments) to make every publish wait for a manual approval.
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify ${{ github.ref_name }}
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: schema_reaper_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+
+    env:
+      SCHEMA_REAPER_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/schema_reaper_test
+
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the main-ancestry and trailer checks need history
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+
+      - name: Tag matches SchemaReaper::VERSION
+        id: version
+        run: |
+          version=$(ruby -Ilib -e 'require "schema_reaper/version"; print SchemaReaper::VERSION')
+          if [ "v${version}" != "${GITHUB_REF_NAME}" ]; then
+            echo "::error::tag ${GITHUB_REF_NAME} does not match lib/schema_reaper/version.rb (${version})"
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Tag is on main
+        run: |
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::${GITHUB_REF_NAME} points at a commit that is not on main"
+            exit 1
+          fi
+
+      - name: CHANGELOG has a section for this version
+        run: |
+          if ! grep -q "^## \[${{ steps.version.outputs.version }}\]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no '## [${{ steps.version.outputs.version }}]' section"
+            exit 1
+          fi
+
+      - name: No AI or wrong-author trailers (RELEASE_CHECKLIST.md section 1)
+        run: |
+          if git log --format='%B' "$GITHUB_SHA" | grep -iE '^(co-authored-by: claude|claude-session:)'; then
+            echo "::error::commit history contains an AI trailer"
+            exit 1
+          fi
+
+      - name: Specs (incl. live introspection) and RuboCop
+        run: bundle exec rake
+
+      - name: Build gem
+        run: gem build schema_reaper.gemspec 2>&1 | tee build.log && ! grep -i warning build.log
+
+      - name: Every lib/ file is packaged
+        run: |
+          gem="schema_reaper-${{ steps.version.outputs.version }}.gem"
+          mkdir pkg-check && tar -xf "$gem" -C pkg-check
+          tar -tzf pkg-check/data.tar.gz | grep '^lib/' | sort > packaged.txt
+          git ls-files lib | sort > tracked.txt
+          if ! diff -u tracked.txt packaged.txt; then
+            echo "::error::packaged lib/ files differ from the tracked ones"
+            exit 1
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gem
+          path: schema_reaper-${{ steps.version.outputs.version }}.gem
+          if-no-files-found: error
+
+  publish:
+    name: Publish to RubyGems
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: write # create the GitHub release
+      id-token: write # RubyGems Trusted Publishing (OIDC)
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: gem
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+
+      - uses: rubygems/configure-rubygems-credentials@v1.0.0
+
+      # Published versions are immutable: refuse to try twice.
+      - name: Version is not on RubyGems yet
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' \
+            "https://rubygems.org/api/v2/rubygems/schema_reaper/versions/${{ needs.verify.outputs.version }}.json")
+          if [ "$code" = "200" ]; then
+            echo "::error::schema_reaper ${{ needs.verify.outputs.version }} is already published"
+            exit 1
+          fi
+
+      - name: Push gem
+        run: gem push "schema_reaper-${{ needs.verify.outputs.version }}.gem"
+
+      - name: Confirm it is live
+        run: |
+          for _ in $(seq 1 20); do
+            live=$(curl -s https://rubygems.org/api/v1/versions/schema_reaper/latest.json \
+              | ruby -rjson -e 'print JSON.parse(STDIN.read)["version"]')
+            [ "$live" = "${{ needs.verify.outputs.version }}" ] && { echo "live: $live"; exit 0; }
+            sleep 15
+          done
+          echo "::warning::not visible on the RubyGems API yet (its cache lags) -- check manually"
+
+      - name: GitHub release from the CHANGELOG section
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          awk -v v="$VERSION" '
+            index($0, "## [" v "]") == 1 { on = 1; next }
+            on && /^## \[/ { exit }
+            on { print }
+          ' CHANGELOG.md > notes.md
+          gh release create "$GITHUB_REF_NAME" "schema_reaper-${VERSION}.gem" \
+            --title "schema_reaper ${VERSION}" --notes-file notes.md --verify-tag
