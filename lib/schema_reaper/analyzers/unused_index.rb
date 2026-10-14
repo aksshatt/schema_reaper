@@ -34,14 +34,20 @@ module SchemaReaper
             severity: :medium,
             confidence: 0.55,
             bytes_per_row: 0,
-            evidence: [
-              "pg_stat_user_indexes.idx_scan = 0 for #{ix.name} (#{ix.columns.join(", ")})",
-              "confirm stats have not been reset recently before dropping"
-            ],
-            suggested_fix: "remove_index :#{table.name}, name: :#{ix.name}  " \
+            evidence: evidence_for(ix),
+            suggested_fix: "remove_index #{sym(table.name)}, name: :#{ix.name}  " \
                            "(use algorithm: :concurrently in production)"
           )
         end
+      end
+
+      def evidence_for(index)
+        [
+          "pg_stat_user_indexes.idx_scan = 0 for #{index.name} (#{index.columns.join(", ")})",
+          "confirm stats have not been reset recently before dropping",
+          "idx_scan is per server: if read replicas serve queries, check " \
+          "pg_stat_user_indexes on each replica too -- an index used only there looks unused here"
+        ]
       end
     end
   end

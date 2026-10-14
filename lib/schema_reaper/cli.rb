@@ -2,16 +2,23 @@
 
 require "thor"
 require_relative "../schema_reaper"
+require_relative "cli/baseline_support"
 
 module SchemaReaper
   # Command-line entry point. See `exe/schema_reaper`.
   class CLI < Thor
+    include BaselineSupport
+
     def self.exit_on_failure?
       true
     end
 
     class_option :config, type: :string, default: ".schema_reaper.yml",
                           desc: "path to config file"
+    class_option :color, type: :boolean, default: nil,
+                         desc: "force colour on/off (default: auto)"
+    class_option :only, type: :array, desc: "run only these analyzers (e.g. dead_column unused_index)"
+    class_option :except, type: :array, desc: "skip these analyzers"
 
     desc "scan", "Scan schema + code and report dead weight"
     option :format, type: :string, default: "table",
@@ -20,11 +27,10 @@ module SchemaReaper
                 desc: "exit non-zero on findings not in the baseline"
     option :record, type: :boolean, default: false,
                     desc: "append this run to the history log"
-    option :min_confidence, type: :numeric, default: 0.0
-    option :color, type: :boolean, default: nil,
-                   desc: "force colour on/off for the table report (default: auto)"
+    option :min_confidence, type: :numeric,
+                            desc: "hide findings below this confidence (default: min_confidence in config, 0.0)"
     def scan
-      findings = run.select { |f| f.confidence >= options[:min_confidence] }
+      findings = run(min_confidence: options[:min_confidence])
       render_report(findings)
 
       History.new(config.history_log).record(findings) if options[:record]
@@ -32,10 +38,17 @@ module SchemaReaper
     end
 
     desc "baseline", "Write current findings to the baseline file"
+    option :reason, type: :string, desc: "why these findings are accepted (stored on newly added entries)"
+    option :expires, type: :string, desc: "YYYY-MM-DD after which `scan --ci` fails on them again"
+    option :prune, type: :boolean, default: false,
+                   desc: "only drop entries for findings that no longer occur; accept nothing new"
     def baseline
       findings = run
-      Baseline.new(config.baseline_path).write(findings)
+      store = Baseline.new(config.baseline_path)
       console.title("baseline")
+      return report_pruned(store.prune(findings)) if options[:prune]
+
+      store.write(findings, reason: options[:reason], expires_on: parse_date(options[:expires]))
       console.ok("recorded #{findings.size} finding#{"s" unless findings.size == 1} " \
                  "as the accepted baseline")
       console.info("file: #{config.baseline_path}")
@@ -49,8 +62,17 @@ module SchemaReaper
       Reporters::Trend.new(history.trend, color: options[:color]).render
     end
 
-    desc "generate-migration TABLE COLUMN", "Emit a staged removal migration pair"
-    def generate_migration(table, column)
+    desc "generate-migration TABLE [COLUMN]",
+         "Emit a staged removal migration pair for a column, or a removal migration for an index (--index) or table"
+    option :index, type: :string, desc: "name of an index on TABLE to remove instead of a column"
+    def generate_migration(table, column = nil)
+      if options[:index] && column
+        console.problem("pass either COLUMN or --index, not both")
+        exit 1
+      end
+      return generate_index_migration(table, options[:index]) if options[:index]
+      return generate_table_migration(table) unless column
+
       paths = MigrationGenerator.new(table: table, column: column).call
       console.title("generate-migration", "#{table}.#{column}")
       console.ok("created two migrations:")
@@ -62,6 +84,16 @@ module SchemaReaper
                    ])
     end
 
+    desc "explain ID", "Show everything known about one finding and the command to act on it"
+    def explain(id)
+      exit 1 unless Explain.new(run, config: config, console: console).call(id)
+    end
+
+    desc "doctor", "Check the database, statistics, runtime log, baseline and alert setup"
+    def doctor
+      exit 1 unless Doctor.new(config: config, console: console).call
+    end
+
     desc "version", "Print version"
     def version
       say(SchemaReaper::VERSION)
@@ -69,12 +101,30 @@ module SchemaReaper
 
     private
 
+    def generate_index_migration(table, index)
+      path = MigrationGenerator.new(table: table, index: index).call.first
+      console.title("generate-migration", "#{table} · #{index}")
+      console.ok("created #{path}")
+      console.info("runs with algorithm: :concurrently, so it does not lock writes to #{table}")
+    end
+
+    def generate_table_migration(table)
+      path = MigrationGenerator.new(table: table).call.first
+      console.title("generate-migration", table)
+      console.ok("created #{path}")
+      console.list("before running it:", [
+                     "confirm no external consumer (reports, ETL, other services) reads #{table}",
+                     "take a backup -- its `down` cannot bring the data back"
+                   ])
+    end
+
     def config
       @config ||= Config.load(options[:config])
     end
 
-    def run
-      Runner.new(config: config).run
+    def run(min_confidence: nil)
+      Runner.new(config: config, only: options[:only], except: options[:except],
+                 min_confidence: min_confidence).run
     rescue SchemaReaper::Error => e
       console.problem(e.message)
       exit 1
@@ -93,7 +143,9 @@ module SchemaReaper
     end
 
     def enforce_baseline(findings)
-      new_ones = Baseline.new(config.baseline_path).new_among(findings)
+      store = Baseline.new(config.baseline_path)
+      warn_expired(store.expired, findings)
+      new_ones = store.new_among(findings)
       return if new_ones.empty?
 
       console.problem(

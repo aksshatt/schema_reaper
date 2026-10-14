@@ -8,9 +8,10 @@ module SchemaReaper
     class Sarif
       LEVEL = { high: "error", medium: "warning", low: "note" }.freeze
 
-      def initialize(findings, io: $stdout)
+      def initialize(findings, io: $stdout, locator: SchemaLocator.new)
         @findings = findings
         @io = io
+        @locator = locator
       end
 
       def render
@@ -52,13 +53,21 @@ module SchemaReaper
               "confidence" => f.confidence,
               "reclaimableBytes" => f.reclaimable_bytes
             },
-            "locations" => [{
-              "physicalLocation" => {
-                "artifactLocation" => { "uri" => "db/schema.rb" }
-              }
-            }]
+            "locations" => locations_for(f)
           }
         end
+      end
+
+      # GitHub code scanning requires a location on every result, so with no
+      # schema file in the repo fall back to the conventional path, unlined.
+      def locations_for(finding)
+        loc = @locator.locate(finding)
+        return [{ "physicalLocation" => { "artifactLocation" => { "uri" => "db/schema.rb" } } }] unless loc
+
+        [{ "physicalLocation" => {
+          "artifactLocation" => { "uri" => loc.path },
+          "region" => { "startLine" => loc.line }
+        } }]
       end
 
       def camelize(str)

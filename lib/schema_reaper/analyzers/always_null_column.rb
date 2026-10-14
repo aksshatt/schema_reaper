@@ -20,6 +20,7 @@ module SchemaReaper
         table.columns.filter_map do |col|
           next unless col.always_null?
           next if config.always_keep_columns.include?(col.name)
+          next if ignored_column?(col.name)
           next if gem_reserved?(table.name, col.name)
 
           finding(
@@ -27,16 +28,22 @@ module SchemaReaper
             table: table.name,
             column: col.name,
             severity: :high,
-            confidence: 0.85,
+            confidence: sampled_stats?(table) ? 0.7 : 0.85,
             bytes_per_row: col.bytes,
-            evidence: [
-              "pg_stats.null_frac = 1.0 across ~#{table.row_count} row(s)",
-              "column carries no data"
-            ],
+            evidence: evidence_for(table),
             suggested_fix: "verify with `SELECT count(#{col.name}) FROM #{table.name}` " \
                            "then stage a removal"
           )
         end
+      end
+
+      def evidence_for(table)
+        ev = ["pg_stats.null_frac = 1.0 across ~#{table.row_count} row(s)"]
+        ev << if sampled_stats?(table)
+                "estimated from a #{STATS_SAMPLE_ROWS}-row ANALYZE sample -- a few non-null rows could be missed"
+              else
+                "column carries no data"
+              end
       end
     end
   end

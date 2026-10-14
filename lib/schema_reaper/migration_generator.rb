@@ -3,7 +3,9 @@
 require "fileutils"
 
 module SchemaReaper
-  # Emits a two-step, reversible migration pair for a dead column.
+  # Emits removal migrations: a two-step pair for a dead column (ignore, then
+  # drop), or a single migration for an index (index:) or a whole table (no
+  # column: and no index:).
   class MigrationGenerator
     # Enough of Rails' inflector for table names in this comment text -- a
     # wrong guess doesn't break anything functional, just reads oddly.
@@ -13,18 +15,67 @@ module SchemaReaper
       [/s\z/, ""]                   # employees  -> employee
     ].freeze
 
-    def initialize(table:, column:, dir: "db/migrate")
+    def initialize(table:, column: nil, index: nil, dir: "db/migrate")
+      raise ArgumentError, "pass column: or index:, not both" if column && index
+
       @table = table
       @column = column
+      @index = index
       @dir = dir
     end
 
     def call
       FileUtils.mkdir_p(@dir)
+      return [drop_index] if @index
+      return [drop_table] unless @column
+
       [stage_one, stage_two]
     end
 
     private
+
+    # CREATE/DROP INDEX CONCURRENTLY cannot run inside a transaction, hence
+    # disable_ddl_transaction!. The down raises rather than guessing at the
+    # index's definition; recreating it is a copy from db/schema.rb.
+    def drop_index
+      down_msg = "recreate #{@index} on :#{@table} from db/schema.rb if you need it back"
+      write "remove_#{@index}", <<~RUBY
+        # frozen_string_literal: true
+
+        # Removes #{@index} without locking writes to #{@table}.
+        class Remove#{camelize(@index)} < ActiveRecord::Migration[#{migration_version}]
+          disable_ddl_transaction!
+
+          def up
+            remove_index #{@table.to_sym.inspect}, name: #{@index.to_sym.inspect}, algorithm: :concurrently, if_exists: true
+          end
+
+          def down
+            raise ActiveRecord::IrreversibleMigration, #{down_msg.inspect}
+          end
+        end
+      RUBY
+    end
+
+    def drop_table
+      down_msg = "#{@table} and its rows are gone; restore from a backup if you need them back"
+      write "drop_#{@table}", <<~RUBY
+        # frozen_string_literal: true
+
+        # Drops #{@table} and every row in it. Run only after confirming no
+        # external consumer (reports, ETL, other services) reads it, and with
+        # a backup taken. Remove the #{model} model, if any, in the same deploy.
+        class Drop#{camelize(@table)}Table < ActiveRecord::Migration[#{migration_version}]
+          def up
+            drop_table #{@table.to_sym.inspect}
+          end
+
+          def down
+            raise ActiveRecord::IrreversibleMigration, #{down_msg.inspect}
+          end
+        end
+      RUBY
+    end
 
     def stage_one
       note = "Add `self.ignored_columns += %w[#{@column}]` to the #{model} model, " \
@@ -67,7 +118,7 @@ module SchemaReaper
     def write(slug, body)
       @seq = (@seq || -1) + 1
       ts = (Time.now + @seq).strftime("%Y%m%d%H%M%S")
-      path = File.join(@dir, "#{ts}_#{slug}.rb")
+      path = File.join(@dir, "#{ts}_#{slug.tr(".", "_")}.rb")
       File.write(path, body)
       path
     end
@@ -81,7 +132,11 @@ module SchemaReaper
     end
 
     def camel
-      "#{@table}_#{@column}".split("_").map(&:capitalize).join
+      camelize("#{@table}_#{@column}")
+    end
+
+    def camelize(str)
+      str.split(/[_.]/).map(&:capitalize).join
     end
 
     def model

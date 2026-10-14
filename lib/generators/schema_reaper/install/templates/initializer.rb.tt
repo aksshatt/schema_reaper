@@ -15,4 +15,12 @@
 SchemaReaper::AlertConfig.configure do |config|
   # config.emails = %w[dev1@example.com dev2@example.com]
   # config.webhook_url = "https://hooks.slack.com/services/T000/B000/XXXX"
+
+  # :changes sends a report only when findings appeared or were resolved
+  # since the last one (needs Rails.cache); :always sends every run.
+  # config.alert_on = :changes
+
+  # :auto uses Slack Block Kit for hooks.slack.com URLs and a plain
+  # {"text": <markdown>} body for anything else. Force with :slack or :text.
+  # config.webhook_format = :auto
 end

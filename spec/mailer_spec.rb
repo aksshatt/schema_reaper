@@ -42,6 +42,7 @@ RSpec.describe SchemaReaper::Mailer do
   # before the app's autoloader can see app/mailers/application_mailer.rb.
   it "inherits an ApplicationMailer that is only defined after the gem is required" do
     script = <<~RUBY
+      require "logger" # see spec_helper: ActiveSupport < 7.1 needs it preloaded
       require "action_mailer"
       require "schema_reaper"
       class ApplicationMailer < ActionMailer::Base
