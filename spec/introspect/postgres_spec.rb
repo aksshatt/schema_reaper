@@ -1,7 +1,8 @@
 # frozen_string_literal: true
 
-# Exercises the live-database introspection layer. CI has no PostgreSQL service,
-# so these specs are opt-in — point them at a throwaway database:
+# Exercises the live-database introspection layer. CI runs these against a
+# PostgreSQL service; locally they are opt-in -- point them at a throwaway
+# database:
 #
 #   SCHEMA_REAPER_TEST_DATABASE_URL=postgres://localhost/schema_reaper_test bundle exec rspec
 RSpec.describe SchemaReaper::Introspect::Postgres do
@@ -119,6 +120,19 @@ RSpec.describe SchemaReaper::Introspect::Postgres do
         SELECT 'x', CASE WHEN i % 2 = 0 THEN NULL ELSE 'y' END
         FROM generate_series(1, 100) AS i;
         ANALYZE schema_reaper_analysed;
+
+        -- Declarative partitioning: pg_tables lists each partition as its own
+        -- table. No model names a partition, so reporting them would turn
+        -- every partition into a dead_table finding with a drop_table fix.
+        DROP TABLE IF EXISTS schema_reaper_events;
+        CREATE TABLE schema_reaper_events (
+          id bigint NOT NULL,
+          created_at date NOT NULL
+        ) PARTITION BY RANGE (created_at);
+        CREATE TABLE schema_reaper_events_2024
+          PARTITION OF schema_reaper_events FOR VALUES FROM ('2024-01-01') TO ('2025-01-01');
+        CREATE TABLE schema_reaper_events_2025
+          PARTITION OF schema_reaper_events FOR VALUES FROM ('2025-01-01') TO ('2026-01-01');
       SQL
     end
 
@@ -127,6 +141,7 @@ RSpec.describe SchemaReaper::Introspect::Postgres do
       @conn&.exec("DROP TABLE IF EXISTS schema_reaper_composite_pk")
       @conn&.exec("DROP TABLE IF EXISTS schema_reaper_expr_idx")
       @conn&.exec("DROP TABLE IF EXISTS schema_reaper_analysed")
+      @conn&.exec("DROP TABLE IF EXISTS schema_reaper_events")
       @conn&.close
     end
 
@@ -201,6 +216,13 @@ RSpec.describe SchemaReaper::Introspect::Postgres do
       expect(always_present.null_fraction).to eq(0.0)
       expect(sometimes_null.null_fraction).to be_within(0.15).of(0.5)
       expect(sometimes_null.distinct_values).not_to be_nil
+    end
+
+    it "reports a partitioned table once, by its parent, and not each partition" do
+      names = described_class.new(db_url).call.tables.map(&:name)
+
+      expect(names).to include("schema_reaper_events")
+      expect(names).not_to include("schema_reaper_events_2024", "schema_reaper_events_2025")
     end
   end
 end

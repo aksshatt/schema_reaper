@@ -65,9 +65,14 @@ module SchemaReaper
           .first&.fetch("total")&.to_i
       end
 
+      # Ordinary and partitioned tables, but not partitions: pg_tables lists
+      # each partition as a table of its own, and since no model ever names a
+      # partition, every one of them would be reported as a dead table. The
+      # partitioned parent stands for the whole set.
       def table_names
         exec(<<~SQL).map { |r| r["tablename"] }
-          SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename
+          SELECT relname AS tablename FROM pg_class WHERE relnamespace = 'public'::regnamespace
+          AND relkind IN ('r', 'p') AND NOT relispartition ORDER BY relname
         SQL
       end
 
