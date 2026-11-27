@@ -4,7 +4,7 @@ module SchemaReaper
   # Plain-data representation of the database, produced by an introspector.
   # No ActiveRecord objects leak past this boundary.
   # dependents: database objects that read the column -- views, materialized
-  # views, generated columns, `UPDATE OF` triggers -- as labels such as
+  # views, rules, generated columns, `UPDATE OF` triggers -- as labels such as
   # "view active_users". Dropping the column would fail or cascade into them.
   Column = Struct.new(
     :name, :sql_type, :null, :default, :bytes,
@@ -69,11 +69,12 @@ module SchemaReaper
     end
   end
 
-  # views: views and materialized views that read the table, as labels such
-  # as "view active_users". A table one of them reads is not dead, whatever
-  # the application code says.
+  # dependents: views, materialized views and rules on other tables that use
+  # this table, as labels such as "view active_users" or "rule log_to_t on
+  # audit". A table one of them uses is not dead, whatever the application
+  # code says -- and DROP TABLE would fail, or CASCADE them away.
   Table = Struct.new(
-    :name, :columns, :indexes, :primary_key, :foreign_keys, :foreign_key_constraints, :row_count, :views,
+    :name, :columns, :indexes, :primary_key, :foreign_keys, :foreign_key_constraints, :row_count, :dependents,
     keyword_init: true
   ) do
     # Introspectors (and hand-built test schemas) that predate constraint
@@ -82,8 +83,8 @@ module SchemaReaper
       self[:foreign_key_constraints] || []
     end
 
-    def views
-      self[:views] || []
+    def dependents
+      self[:dependents] || []
     end
 
     def column_names

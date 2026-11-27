@@ -4,15 +4,18 @@
 
 ### Fixed
 - **Columns and tables the database itself reads are no longer reported as
-  dead.** A column read only by a view, a materialized view, a generated
-  column's expression or an `UPDATE OF` trigger looked unused to the code
-  scan, so `dead_column` suggested a `remove_column` that PostgreSQL refuses
-  (or that takes the view with it under `CASCADE`). The same went for a table
-  only a view reads and `dead_table`. Introspection now reads these
-  dependencies from `pg_depend`. `dead_column` and `dead_table` skip what they
-  cover, and `always_null_column` / `single_value_column` still report the
-  column but name what blocks its removal. Trigger *functions* record no
-  column dependencies, so columns they alone touch are still invisible.
+  dead.** A column read only by a view, a materialized view, a rule, a
+  generated column's expression or an `UPDATE OF` trigger looked unused to
+  the code scan, so `dead_column` suggested a `remove_column` that PostgreSQL
+  refuses (or that takes the view with it under `CASCADE`). The same went for
+  a table only a view or another table's rule uses, and `dead_table`.
+  Introspection now reads these dependencies from `pg_depend` -- in one query
+  for the whole database, not one per table -- and files any that point at a
+  partition under its partitioned parent. `dead_column` and `dead_table` skip
+  what they cover, and `always_null_column` / `single_value_column` still
+  report the column but name what blocks its removal. Trigger *functions*
+  record no column dependencies, so columns they alone touch are still
+  invisible.
 - **Indexes that back a constraint are never offered for removal.**
   `unused_index` flagged the index behind an `EXCLUDE` constraint (it is not
   unique, so the existing guard missed it), and `duplicate_index` could pick a
