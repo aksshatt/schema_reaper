@@ -39,6 +39,39 @@ module SchemaReaper
         "smallint" => 32_767, "integer" => 2_147_483_647, "bigint" => 9_223_372_036_854_775_807
       }.freeze
 
+      # Database objects that read this table, from pg_depend's normal (deptype
+      # 'n') edges -- the ones that make DROP fail without CASCADE:
+      #   pg_rewrite -- a view or materialized view's query. It points at each
+      #                 column it reads, or at the table alone (attnum 0) when
+      #                 it reads none, e.g. SELECT count(*);
+      #   pg_attrdef -- a generated column's expression;
+      #   pg_trigger -- a trigger declared UPDATE OF the column.
+      # A CHECK constraint is left out: it is dropped along with its column.
+      # Trigger *functions* record no dependency on the columns they touch, so
+      # they stay invisible here.
+      DEPENDENTS_SQL = <<~SQL
+        SELECT a.attname, (d.classid = 'pg_rewrite'::regclass) AS view,
+               CASE d.classid
+                 WHEN 'pg_rewrite'::regclass
+                   THEN CASE v.relkind WHEN 'm' THEN 'materialized view ' ELSE 'view ' END || v.oid::regclass::text
+                 WHEN 'pg_attrdef'::regclass THEN 'generated column ' || ga.attname
+                 ELSE 'trigger ' || tg.tgname
+               END AS dependent
+        FROM pg_depend d
+        JOIN pg_class t ON t.oid = d.refobjid
+        LEFT JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = d.refobjsubid AND d.refobjsubid > 0
+        LEFT JOIN pg_rewrite r ON d.classid = 'pg_rewrite'::regclass AND r.oid = d.objid
+        LEFT JOIN pg_class v ON v.oid = r.ev_class
+        LEFT JOIN pg_attrdef ad ON d.classid = 'pg_attrdef'::regclass AND ad.oid = d.objid
+        LEFT JOIN pg_attribute ga ON ga.attrelid = ad.adrelid AND ga.attnum = ad.adnum
+        LEFT JOIN pg_trigger tg ON d.classid = 'pg_trigger'::regclass AND tg.oid = d.objid
+        WHERE d.refclassid = 'pg_class'::regclass AND d.deptype = 'n'
+          AND d.classid IN ('pg_rewrite'::regclass, 'pg_attrdef'::regclass, 'pg_trigger'::regclass)
+          AND t.relnamespace = $1::regnamespace AND t.relname = $2
+          AND (r.oid IS NULL OR r.ev_class <> t.oid)
+        ORDER BY dependent
+      SQL
+
       # Tables in `public` keep their bare name, so every existing config,
       # baseline and finding id stays valid; tables in any other scanned schema
       # are reported as `schema.table`.
@@ -118,18 +151,20 @@ module SchemaReaper
 
       def build_table(namespace, name)
         fks = foreign_key_constraints_for(namespace, name)
+        deps = dependents_for(namespace, name)
         Table.new(
           name: self.class.display_name(namespace, name),
-          columns: columns_for(namespace, name),
+          columns: columns_for(namespace, name, deps[:columns]),
           indexes: indexes_for(namespace, name),
           primary_key: primary_key_for(namespace, name),
           foreign_keys: fks.flat_map(&:columns).uniq,
           foreign_key_constraints: fks,
-          row_count: row_count_for(namespace, name)
+          row_count: row_count_for(namespace, name),
+          views: deps[:views]
         )
       end
 
-      def columns_for(namespace, table)
+      def columns_for(namespace, table, dependents = {})
         stats = column_stats_for(namespace, table)
         exec(<<~SQL, [namespace, table]).map do |r|
           SELECT column_name, data_type, is_nullable, column_default
@@ -145,9 +180,19 @@ module SchemaReaper
             default: r["column_default"],
             bytes: measured_bytes(s) || AVG_TYPE_BYTES.fetch(r["data_type"], 16),
             null_fraction: s[:null_frac],
-            distinct_values: s[:n_distinct]
+            distinct_values: s[:n_distinct],
+            dependents: dependents.fetch(r["column_name"], [])
           )
         end
+      end
+
+      def dependents_for(namespace, table)
+        rows = exec(DEPENDENTS_SQL, [namespace, table])
+        {
+          columns: rows.select { |r| r["attname"] }.group_by { |r| r["attname"] }
+                       .transform_values { |rs| rs.map { |r| r["dependent"] }.uniq },
+          views: rows.select { |r| r["view"] == "t" }.map { |r| r["dependent"] }.uniq
+        }
       end
 
       # avg_width covers non-null values only, and a NULL takes no space in
@@ -190,13 +235,18 @@ module SchemaReaper
       # so it renders a plain column and an expression uniformly and never
       # silently drops one. indnkeyatts excludes INCLUDE columns, which are
       # payload only. partial (indpred IS NOT NULL) lets analyzers refuse to
-      # treat a conditional index as if it covered every row.
+      # treat a conditional index as if it covered every row. constraint_name
+      # is the PRIMARY KEY / UNIQUE / EXCLUDE constraint the index enforces;
+      # contype keeps out foreign keys, whose conindid is the *referenced*
+      # table's index.
       def indexes_for(namespace, table)
         exec(<<~SQL, [namespace, table]).map do |r|
           SELECT i.relname AS name, (i.relkind = 'I') AS partitioned,
                  ix.indisunique AS "unique", ix.indisprimary AS "primary",
                  (ix.indpred IS NOT NULL) AS partial,
                  #{partitioned_index_scans_sql} AS scans,
+                 (SELECT con.conname FROM pg_constraint con
+                  WHERE con.conindid = i.oid AND con.contype IN ('p', 'u', 'x') LIMIT 1) AS constraint_name,
                  array_to_string(
                    array_agg(pg_get_indexdef(ix.indexrelid, k.ord::int, true) ORDER BY k.ord),
                    '#{COLUMN_SEPARATOR}'
@@ -217,7 +267,8 @@ module SchemaReaper
         Index.new(
           name: row["name"], columns: row["cols"].split(COLUMN_SEPARATOR),
           unique: row["unique"] == "t", primary: row["primary"] == "t", partial: row["partial"] == "t",
-          scans: row["scans"]&.to_i, partitioned: row["partitioned"] == "t"
+          scans: row["scans"]&.to_i, partitioned: row["partitioned"] == "t",
+          constraint: row["constraint_name"]
         )
       end
 

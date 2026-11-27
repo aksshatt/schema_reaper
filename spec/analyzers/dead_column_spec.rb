@@ -32,6 +32,18 @@ RSpec.describe SchemaReaper::Analyzers::DeadColumn do
     expect(findings(used: %w[email], gem_columns: gem_cols)).to be_empty
   end
 
+  it "keeps a column a view, generated column or trigger reads, even with no code reference" do
+    schema = fake_schema(
+      fake_table("users", row_count: 1000, columns: [
+                   { name: "id" },
+                   { name: "legacy_ssn_hash", dependents: ["view audit_export"] }
+                 ])
+    )
+    ctx = context_for(schema: schema, used: %w[id])
+
+    expect(described_class.new(ctx).call).to be_empty
+  end
+
   it "caps confidence at 0.6 for static-only signal" do
     expect(findings(used: %w[email]).first.confidence).to be <= 0.6
   end

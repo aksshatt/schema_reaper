@@ -18,6 +18,20 @@ RSpec.describe "index analyzers" do
       expect(result.map(&:index)).to eq(["idx_orders_on_state"])
     end
 
+    it "never flags an index that backs an EXCLUDE constraint" do
+      # Non-unique, so the unique/primary guard does not catch it -- but DROP
+      # INDEX refuses it, and it enforces the no-overlap rule even unscanned.
+      schema = fake_schema(
+        fake_table("bookings", row_count: 10, columns: [{ name: "id" }, { name: "period" }],
+                               indexes: [
+                                 { name: "bookings_period_excl", columns: %w[period], scans: 0,
+                                   constraint: "bookings_period_excl" },
+                                 { name: "idx_bookings_hot", columns: %w[id], scans: 4200 }
+                               ])
+      )
+      expect(findings(described_class, schema)).to be_empty
+    end
+
     it "ignores indexes when no scan stats are present" do
       schema = fake_schema(
         fake_table("orders", columns: [{ name: "id" }],
@@ -117,6 +131,20 @@ RSpec.describe "index analyzers" do
         expect(result.first.evidence.first).to include("duplicates")
       end
 
+      it "keeps the index backing a UNIQUE constraint and flags the plain unique index" do
+        # By name alone the constraint's index would be the one flagged, and
+        # its remove_index fails: only dropping the constraint can remove it.
+        schema = fake_schema(
+          fake_table("users", columns: [{ name: "id" }],
+                              indexes: [
+                                { name: "index_users_on_email", columns: %w[email], unique: true },
+                                { name: "users_email_key", columns: %w[email], unique: true,
+                                  constraint: "users_email_key" }
+                              ])
+        )
+        expect(findings(described_class, schema).map(&:index)).to eq(["index_users_on_email"])
+      end
+
       it "flags exactly one when neither is unique, never both" do
         # Comparing them pairwise with no tie-break would have each flag the
         # other -- applying both suggested fixes would drop the column pair
@@ -130,6 +158,17 @@ RSpec.describe "index analyzers" do
         )
         expect(findings(described_class, schema).map(&:index)).to eq(["idx_b_first"])
       end
+    end
+
+    it "never offers a constraint-backed index for removal, even as a prefix of a wider one" do
+      schema = fake_schema(
+        fake_table("bookings", columns: [{ name: "id" }],
+                               indexes: [
+                                 { name: "bookings_room_excl", columns: %w[room_id], constraint: "bookings_room_excl" },
+                                 { name: "idx_room_period", columns: %w[room_id period] }
+                               ])
+      )
+      expect(findings(described_class, schema)).to be_empty
     end
 
     describe "a partial index" do

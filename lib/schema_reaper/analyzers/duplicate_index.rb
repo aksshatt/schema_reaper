@@ -27,7 +27,12 @@ module SchemaReaper
         non_pk.filter_map { |index| finding_for(table, index, non_pk, by_columns) }
       end
 
+      # An index backing a UNIQUE or EXCLUDE constraint is never offered for
+      # removal: DROP INDEX refuses it, so the suggested remove_index would
+      # fail, and only dropping the constraint itself could remove it.
       def finding_for(table, index, non_pk, by_columns)
+        return if index.constraint_backed?
+
         covering = covering_for(index, non_pk, by_columns)
         return unless covering
 
@@ -62,11 +67,13 @@ module SchemaReaper
       end
 
       # Keep a unique index over a non-unique one -- it enforces a guarantee
-      # the others don't -- breaking further ties by name for a stable,
-      # order-independent choice.
+      # the others don't -- and among unique ones, the one backing a
+      # constraint, since that one cannot be dropped. Further ties break by
+      # name for a stable, order-independent choice.
       def survivor_of(peers)
         unique_peers = peers.select(&:unique)
-        (unique_peers.empty? ? peers : unique_peers).min_by(&:name)
+        candidates = unique_peers.empty? ? peers : unique_peers
+        candidates.min_by { |index| [index.constraint_backed? ? 0 : 1, index.name] }
       end
 
       def prefix_covering_for(index, non_pk)
