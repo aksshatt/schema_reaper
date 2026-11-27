@@ -1,5 +1,18 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- **Table partitions are no longer reported as dead tables.** Introspection
+  read `pg_tables`, which lists every partition of a partitioned table as a
+  table of its own; since no model names a partition, each one surfaced as a
+  `dead_table` finding with a `drop_table` fix. Partitions are now skipped and
+  the partitioned parent is scanned in their place.
+
+### Changed
+- CI now runs the introspection specs against a PostgreSQL 16 service instead
+  of skipping them.
+
 ## [2.0.1] - 2026-09-23
 
 ### Fixed
