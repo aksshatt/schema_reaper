@@ -68,7 +68,7 @@ def fake_index(attrs)
   )
 end
 
-def fake_table(name, columns:, primary_key: "id", foreign_keys: [], indexes: [], row_count: nil, views: nil)
+def fake_table(name, columns:, primary_key: "id", foreign_keys: [], indexes: [], row_count: nil, dependents: nil)
   SchemaReaper::Table.new(
     name: name,
     columns: columns.map { |c| fake_column(c) },
@@ -76,7 +76,7 @@ def fake_table(name, columns:, primary_key: "id", foreign_keys: [], indexes: [],
     primary_key: primary_key,
     foreign_keys: foreign_keys,
     row_count: row_count,
-    views: views
+    dependents: dependents
   )
 end
 
