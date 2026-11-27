@@ -23,6 +23,18 @@ RSpec.describe "data-shape analyzers" do
       )
       expect(findings(described_class, schema)).to be_empty
     end
+
+    it "still flags a column a view reads, but says the view blocks its removal" do
+      schema = fake_schema(
+        fake_table("users", row_count: 5000, columns: [
+                     { name: "id" },
+                     { name: "middle_name", null_fraction: 1.0, dependents: ["view directory"] }
+                   ])
+      )
+      evidence = findings(described_class, schema).first.evidence
+
+      expect(evidence.last).to include("read by view directory", "before removing the column")
+    end
   end
 
   describe SchemaReaper::Analyzers::SingleValueColumn do

@@ -115,6 +115,15 @@ module SchemaReaper
       # concurrently"), and its per-partition indexes can't be dropped on
       # their own while attached, so the only path is a plain drop, which
       # takes an ACCESS EXCLUSIVE lock on the parent and every partition.
+      # Evidence for a column some view, generated column or trigger reads:
+      # removing it fails until those are changed, or silently cascades.
+      def dependents_evidence(col)
+        return [] if col.dependents.empty?
+
+        ["read by #{col.dependents.join(", ")} -- change #{col.dependents.size == 1 ? "it" : "them"} " \
+         "before removing the column"]
+      end
+
       def remove_index_fix(table, index)
         base = "remove_index #{sym(table.name)}, name: :#{index.name}"
         return "#{base}  (use algorithm: :concurrently in production)" unless index.partitioned

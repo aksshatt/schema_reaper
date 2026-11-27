@@ -51,7 +51,8 @@ def fake_column(attrs)
     default: attrs[:default],
     bytes: attrs.fetch(:bytes, 4),
     null_fraction: attrs[:null_fraction],
-    distinct_values: attrs[:distinct_values]
+    distinct_values: attrs[:distinct_values],
+    dependents: attrs[:dependents]
   )
 end
 
@@ -62,18 +63,20 @@ def fake_index(attrs)
     unique: attrs.fetch(:unique, false),
     primary: attrs.fetch(:primary, false),
     partial: attrs.fetch(:partial, false),
-    scans: attrs[:scans]
+    scans: attrs[:scans],
+    constraint: attrs[:constraint]
   )
 end
 
-def fake_table(name, columns:, primary_key: "id", foreign_keys: [], indexes: [], row_count: nil)
+def fake_table(name, columns:, primary_key: "id", foreign_keys: [], indexes: [], row_count: nil, views: nil)
   SchemaReaper::Table.new(
     name: name,
     columns: columns.map { |c| fake_column(c) },
     indexes: indexes.map { |i| fake_index(i) },
     primary_key: primary_key,
     foreign_keys: foreign_keys,
-    row_count: row_count
+    row_count: row_count,
+    views: views
   )
 end
 

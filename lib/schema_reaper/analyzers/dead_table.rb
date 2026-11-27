@@ -30,6 +30,7 @@ module SchemaReaper
 
       def dead(table)
         return if referenced?(table)
+        return if table.views.any? # DROP TABLE would fail, or CASCADE the view away
         return if runtime.table_accessed?(table.name)
 
         finding(

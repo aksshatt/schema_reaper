@@ -3,11 +3,20 @@
 module SchemaReaper
   # Plain-data representation of the database, produced by an introspector.
   # No ActiveRecord objects leak past this boundary.
+  # dependents: database objects that read the column -- views, materialized
+  # views, generated columns, `UPDATE OF` triggers -- as labels such as
+  # "view active_users". Dropping the column would fail or cascade into them.
   Column = Struct.new(
     :name, :sql_type, :null, :default, :bytes,
-    :distinct_values, :null_fraction,
+    :distinct_values, :null_fraction, :dependents,
     keyword_init: true
   ) do
+    # Introspectors (and hand-built test schemas) that predate dependency
+    # tracking leave this nil.
+    def dependents
+      self[:dependents] || []
+    end
+
     # true when every row holds NULL (pg_stats null_frac == 1)
     def always_null?
       null_fraction && null_fraction >= 1.0
@@ -21,7 +30,11 @@ module SchemaReaper
 
   # partitioned: an index on a partitioned parent (relkind 'I'). PostgreSQL
   # cannot DROP one CONCURRENTLY, so removal advice differs.
-  Index = Struct.new(:name, :columns, :unique, :primary, :scans, :partial, :partitioned, keyword_init: true) do
+  # constraint: the PRIMARY KEY, UNIQUE or EXCLUDE constraint the index
+  # enforces, if any. DROP INDEX refuses such an index -- only dropping the
+  # constraint removes it -- so it is never offered as a remove_index.
+  Index = Struct.new(:name, :columns, :unique, :primary, :scans, :partial, :partitioned, :constraint,
+                     keyword_init: true) do
     def covers?(other)
       columns.first(other.columns.length) == other.columns
     end
@@ -32,6 +45,10 @@ module SchemaReaper
     # partial index is simply never treated as covering another.
     def partial?
       !!partial
+    end
+
+    def constraint_backed?
+      !!constraint
     end
   end
 
@@ -52,14 +69,21 @@ module SchemaReaper
     end
   end
 
+  # views: views and materialized views that read the table, as labels such
+  # as "view active_users". A table one of them reads is not dead, whatever
+  # the application code says.
   Table = Struct.new(
-    :name, :columns, :indexes, :primary_key, :foreign_keys, :foreign_key_constraints, :row_count,
+    :name, :columns, :indexes, :primary_key, :foreign_keys, :foreign_key_constraints, :row_count, :views,
     keyword_init: true
   ) do
     # Introspectors (and hand-built test schemas) that predate constraint
     # details leave this nil.
     def foreign_key_constraints
       self[:foreign_key_constraints] || []
+    end
+
+    def views
+      self[:views] || []
     end
 
     def column_names
