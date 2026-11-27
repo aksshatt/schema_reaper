@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [2.1.1] - 2026-11-27
 
 ### Fixed
 - **Columns and tables the database itself reads are no longer reported as
@@ -15,14 +15,14 @@
   what they cover, and `always_null_column` / `single_value_column` still
   report the column but name what blocks its removal. Trigger *functions*
   record no column dependencies, so columns they alone touch are still
-  invisible.
+  invisible. (#30, @mitkush)
 - **Indexes that back a constraint are never offered for removal.**
   `unused_index` flagged the index behind an `EXCLUDE` constraint (it is not
   unique, so the existing guard missed it), and `duplicate_index` could pick a
   `UNIQUE` constraint's index over a plain unique index on the same columns.
   In both cases the suggested `remove_index` fails: only dropping the
   constraint removes such an index. `duplicate_index` now keeps the
-  constraint's index and flags the plain one.
+  constraint's index and flags the plain one. (#30, @mitkush)
 
 ## [2.1.0] - 2026-10-14
 
