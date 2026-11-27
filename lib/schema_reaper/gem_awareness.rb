@@ -9,6 +9,18 @@ module SchemaReaper
   module GemAwareness
     # gem name => { table_glob => [column names] }.  "*" table_glob matches any
     # table; an exact name matches only that table.
+    def self.owned(tables)
+      tables.to_h { |t| [t, []] }
+    end
+    private_class_method :owned
+
+    SOLID_QUEUE_TABLES = %w[
+      solid_queue_jobs solid_queue_ready_executions solid_queue_scheduled_executions
+      solid_queue_claimed_executions solid_queue_blocked_executions solid_queue_failed_executions
+      solid_queue_recurring_executions solid_queue_recurring_tasks solid_queue_pauses
+      solid_queue_processes solid_queue_semaphores
+    ].freeze
+
     MAP = {
       "devise" => { "*" => %w[
         encrypted_password reset_password_token reset_password_sent_at
@@ -42,7 +54,25 @@ module SchemaReaper
           resource_owner_type resource_owner_id access_token refresh_token
           expires_in revoked_at previous_refresh_token
         ]
-      }
+      },
+      # Gems below own their tables outright and touch every column from
+      # their own code, so the tables are listed with no columns: ownership
+      # alone keeps every analyzer off them (see Base#gem_reserved?).
+      "solid_queue" => owned(SOLID_QUEUE_TABLES),
+      "solid_cache" => owned(%w[solid_cache_entries]),
+      "solid_cable" => owned(%w[solid_cable_messages]),
+      "good_job" => owned(%w[good_jobs good_job_executions good_job_processes good_job_settings
+                             good_job_batches]),
+      "delayed_job_active_record" => owned(%w[delayed_jobs]),
+      "flipper-active_record" => owned(%w[flipper_features flipper_gates]),
+      "acts-as-taggable-on" => owned(%w[tags taggings]),
+      "doorkeeper" => owned(%w[oauth_applications oauth_access_grants oauth_access_tokens]),
+      "noticed" => owned(%w[noticed_events noticed_notifications]),
+      "activerecord-session_store" => owned(%w[sessions]),
+      # Columns these gems add to app tables; the first is the anchor.
+      "discard" => { "*" => %w[discarded_at] },
+      "acts_as_list" => { "*" => %w[position] },
+      "ancestry" => { "*" => %w[ancestry ancestry_depth children_count] }
     }.freeze
 
     # Table names an installed gem creates and owns outright -- as opposed to

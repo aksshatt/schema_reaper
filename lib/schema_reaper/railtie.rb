@@ -14,7 +14,7 @@ module SchemaReaper
 
       begin
         config = SchemaReaper::Config.load
-        store = SchemaReaper::Runtime::Store.new(path: config.runtime_log)
+        store = SchemaReaper::Runtime::Store.new(path: config.runtime_log, max_bytes: config.runtime_log_max_bytes)
         rate = (ENV["SCHEMA_REAPER_SAMPLE"] || "0.05").to_f
         SchemaReaper::Runtime::Tracker.install!(store: store, sample_rate: rate)
       rescue StandardError => e

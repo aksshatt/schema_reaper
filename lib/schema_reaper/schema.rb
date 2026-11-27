@@ -19,7 +19,9 @@ module SchemaReaper
     end
   end
 
-  Index = Struct.new(:name, :columns, :unique, :primary, :scans, :partial, keyword_init: true) do
+  # partitioned: an index on a partitioned parent (relkind 'I'). PostgreSQL
+  # cannot DROP one CONCURRENTLY, so removal advice differs.
+  Index = Struct.new(:name, :columns, :unique, :primary, :scans, :partial, :partitioned, keyword_init: true) do
     def covers?(other)
       columns.first(other.columns.length) == other.columns
     end
@@ -33,10 +35,33 @@ module SchemaReaper
     end
   end
 
+  # A declared FOREIGN KEY constraint. columns is in key order; references
+  # is the referenced table's display name.
+  # behaviour is an opaque signature of referenced key, ON UPDATE/DELETE,
+  # MATCH and deferrability: equal only when the constraints act alike.
+  ForeignKey = Struct.new(:name, :columns, :references, :behaviour, :validated, keyword_init: true)
+
+  # A column-owned sequence (serial / IDENTITY). max_value is the effective
+  # ceiling: the lower of the sequence's own limit and the column type's.
+  Sequence = Struct.new(:name, :table, :column, :column_type, :last_value, :max_value,
+                        keyword_init: true) do
+    def used_fraction
+      return 0.0 unless max_value&.positive?
+
+      last_value.to_f / max_value
+    end
+  end
+
   Table = Struct.new(
-    :name, :columns, :indexes, :primary_key, :foreign_keys, :row_count,
+    :name, :columns, :indexes, :primary_key, :foreign_keys, :foreign_key_constraints, :row_count,
     keyword_init: true
   ) do
+    # Introspectors (and hand-built test schemas) that predate constraint
+    # details leave this nil.
+    def foreign_key_constraints
+      self[:foreign_key_constraints] || []
+    end
+
     def column_names
       columns.map(&:name)
     end
@@ -61,7 +86,11 @@ module SchemaReaper
     end
   end
 
-  DatabaseSchema = Struct.new(:tables, :index_scan_total, keyword_init: true) do
+  DatabaseSchema = Struct.new(:tables, :index_scan_total, :sequences, keyword_init: true) do
+    def sequences
+      self[:sequences] || []
+    end
+
     def table(name)
       tables.find { |t| t.name == name }
     end

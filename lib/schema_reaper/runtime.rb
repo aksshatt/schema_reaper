@@ -15,19 +15,32 @@ module SchemaReaper
         new(accessed: Set.new, observed_days: 0)
       end
 
+      # Reads the rotated generation (path.1) too, so rotation never shortens
+      # the observed window. Several processes append to one log, so lines are
+      # not in time order -- the span is min..max, not first..last line.
       def self.load(path)
-        return empty unless path && File.exist?(path)
+        return empty unless path
+
+        files = [Store.rotated_path(path), path].select { |f| File.exist?(f) }
+        return empty if files.empty?
 
         seen = Set.new
         first = last = nil
-        File.foreach(path) do |line|
-          row = JSON.parse(line)
-          seen << row["key"]
-          ts = row["at"]
-          first ||= ts
-          last = ts
-        rescue JSON::ParserError
-          next
+        files.each do |file|
+          File.foreach(file) do |line|
+            row = JSON.parse(line)
+            seen << row["key"]
+            # Store writes UTC ISO8601 ("2026-01-05T00:00:00Z"), which sorts
+            # correctly as a string -- far cheaper than parsing every line of
+            # a log that can hold millions. Only the extremes are parsed.
+            ts = row["at"]
+            next unless ts.is_a?(String)
+
+            first = ts if first.nil? || ts < first
+            last = ts if last.nil? || ts > last
+          rescue JSON::ParserError
+            next
+          end
         end
         new(accessed: seen, observed_days: day_span(first, last))
       end
@@ -36,6 +49,14 @@ module SchemaReaper
         return 0 unless first && last
 
         ((Time.parse(last) - Time.parse(first)) / 86_400).ceil
+      rescue ArgumentError
+        0
+      end
+
+      # Raw-SQL access recorded by the tracker's SQL subscriber, keyed
+      # "table.*": the table was touched, but by no column we can name.
+      def table_accessed?(table)
+        accessed.any? { |k| k.start_with?("#{table}.") }
       end
 
       def empty?
@@ -52,10 +73,19 @@ module SchemaReaper
     end
 
     # Buffered writer for the usage log. Thread-safe append of JSON lines.
+    #
+    # Past max_bytes the log is renamed to `<path>.1` (replacing any older
+    # generation) and a fresh one started, so disk use stays under roughly
+    # 2 x max_bytes. nil disables rotation.
     class Store
-      def initialize(path:, flush_every: 200)
+      def self.rotated_path(path)
+        "#{path}.1"
+      end
+
+      def initialize(path:, flush_every: 200, max_bytes: Config::DEFAULTS["runtime_log_max_bytes"])
         @path = path
         @flush_every = flush_every
+        @max_bytes = max_bytes
         @buffer = []
         @mutex = Mutex.new
         FileUtils.mkdir_p(File.dirname(path))
@@ -79,6 +109,23 @@ module SchemaReaper
 
         File.open(@path, "a") { |f| f.write(@buffer.join) }
         @buffer.clear
+        rotate_if_needed
+      end
+
+      # Several processes (Puma workers) share one log, so the size check and
+      # the rename happen under an exclusive flock and the size is checked
+      # again once it's held: otherwise two workers that both saw an
+      # oversized log would rotate twice, and the second rename would put a
+      # nearly empty log over the full generation in <path>.1.
+      def rotate_if_needed
+        return unless @max_bytes && File.size?(@path).to_i > @max_bytes
+
+        File.open("#{@path}.lock", File::RDWR | File::CREAT, 0o644) do |lock|
+          lock.flock(File::LOCK_EX)
+          File.rename(@path, self.class.rotated_path(@path)) if File.size?(@path).to_i > @max_bytes
+        end
+      rescue SystemCallError
+        nil
       end
     end
 
@@ -88,16 +135,52 @@ module SchemaReaper
       class << self
         attr_accessor :store, :sample_rate
 
-        def install!(store:, sample_rate: 0.05)
+        # track_sql: also sample the tables named in every executed SQL
+        # statement, so a table read only through find_by_sql, a raw
+        # connection.execute or a view-backed report still counts as used.
+        def install!(store:, sample_rate: 0.05, track_sql: true)
           return if @installed
 
           self.store = store
           self.sample_rate = sample_rate
           require "active_record"
           ActiveRecord::Base.prepend(Hook)
+          subscribe_sql if track_sql
           at_exit { store.flush }
           @installed = true
         end
+
+        private
+
+        def subscribe_sql
+          ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+            Tracker.note_sql(payload[:sql], payload[:name])
+          end
+        end
+      end
+
+      # The relation after FROM / JOIN / UPDATE / INTO, optionally
+      # schema-qualified and double-quoted: "billing"."invoices" -> billing.invoices.
+      #
+      # INSERT INTO targets are left out on purpose: a table that is only ever
+      # written (an audit log nobody reads) is exactly what dead_table should
+      # be able to find. INSERT ... SELECT still records its FROM tables.
+      SQL_TABLE_RE = /\b(?:FROM|JOIN|UPDATE)\s+((?:"?\w+"?\.)?"?\w+"?)/i.freeze
+      SKIP_SQL_NAMES = %w[SCHEMA TRANSACTION].freeze
+
+      def self.note_sql(sql, name = nil)
+        return unless store && sql
+        return if SKIP_SQL_NAMES.include?(name)
+        return unless rand < sample_rate
+
+        # "public"."users" is the same table the app (and the schema) calls users
+        sql.scan(SQL_TABLE_RE).flatten.map { |t| t.delete('"').delete_prefix("public.") }.uniq.each do |table|
+          next if table.start_with?("pg_", "information_schema")
+
+          store.record(table, "*")
+        end
+      rescue StandardError
+        nil
       end
 
       module Hook

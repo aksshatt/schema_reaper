@@ -152,8 +152,19 @@ a throwaway PostgreSQL with a deliberately dirty schema.
 
 ## 6. Publish the gem
 
-RubyGems requires account MFA; `gem push` prompts for an OTP that only the
-maintainer can enter.
+Pushing the `vX.Y.Z` tag (§5) runs `.github/workflows/release.yml`: it checks
+the tag matches `VERSION`, is on `main`, has a CHANGELOG section and no AI
+trailers in history; runs the full suite against PostgreSQL; builds the gem
+and diffs the packaged `lib/` against `git ls-files`; then (after approval, if
+the `release` environment requires reviewers) pushes to RubyGems via Trusted
+Publishing and creates the GitHub release from the CHANGELOG section.
+
+One-time setup: rubygems.org -> schema_reaper -> Trusted publishers -> add
+repository `aksshatt/schema_reaper`, workflow `release.yml`, environment
+`release`.
+
+Manual fallback -- RubyGems requires account MFA; `gem push` prompts for an
+OTP that only the maintainer can enter.
 
 ```sh
 gem build schema_reaper.gemspec

@@ -75,7 +75,7 @@ gem "schema_reaper"
 | requirement | notes |
 |---|---|
 | Ruby >= 2.7 | CI-tested on 2.7 – 3.3 |
-| PostgreSQL + the `pg` gem | uses your app's own `pg` (every Rails + PostgreSQL app already bundles it); add `gem "pg"` for standalone CLI use. Tables in the `public` schema are scanned. MySQL is on the [roadmap](#roadmap). |
+| PostgreSQL + the `pg` gem | uses your app's own `pg` (every Rails + PostgreSQL app already bundles it); add `gem "pg"` for standalone CLI use. Partitioned tables are reported once, as the parent. Tables in the `public` schema are scanned by default; list others under `schemas:` in the [config](#configuration). MySQL is on the [roadmap](#roadmap). |
 | Rails | optional for the CLI; the rake tasks and production automation need it, and the runtime tracker needs ActiveRecord |
 
 > [!IMPORTANT]
@@ -110,9 +110,16 @@ bundle exec schema_reaper scan --format sarif     # GitHub code scanning
 bundle exec schema_reaper scan --format json
 bundle exec schema_reaper scan --ci               # exit 1 on findings not in the baseline
 bundle exec schema_reaper scan --min-confidence 0.8
+bundle exec schema_reaper scan --only dead_column unused_index   # or --except ...
 bundle exec schema_reaper baseline                # accept current findings
+bundle exec schema_reaper baseline --reason "billing ETL" --expires 2027-03-31
+bundle exec schema_reaper baseline --prune        # drop entries that no longer occur
+bundle exec schema_reaper explain users/legacy_api_token   # one finding in full + next step
+bundle exec schema_reaper doctor                  # is the setup good enough to trust a scan?
 bundle exec schema_reaper trend                   # snapshot + progress delta
-bundle exec schema_reaper generate-migration users legacy_api_token
+bundle exec schema_reaper generate-migration users legacy_api_token   # column: staged pair
+bundle exec schema_reaper generate-migration users --index index_users_on_legacy_token
+bundle exec schema_reaper generate-migration old_audit_logs           # whole table
 ```
 
 <details>
@@ -124,9 +131,10 @@ bundle exec schema_reaper generate-migration users legacy_api_token
 |---|---|---|
 | `--format` | `table` | `table`, `json`, `markdown` or `sarif` |
 | `--ci` | off | exit 1 when a finding isn't in `.schema_reaper/baseline.json` |
-| `--min-confidence N` | `0.0` | hide findings below this confidence (0.0 – 1.0) |
+| `--min-confidence N` | `min_confidence` in config, else `0.0` | hide findings below this confidence (0.0 – 1.0) |
+| `--only A B` / `--except A B` | all | run only, or skip, these analyzers (also on `baseline` and `trend`) |
 | `--record` | off | also append this run to the history log used by `trend` |
-| `--color` / `--no-color` | auto | force colour on or off for the table report |
+| `--color` / `--no-color` | auto | force colour on or off (works on every command) |
 | `--config PATH` | `.schema_reaper.yml` | config file to load (works on every command) |
 
 Colour is automatic on a terminal, and off when output is piped or `NO_COLOR` is set.
@@ -194,8 +202,14 @@ end
 Both channels fire when both are set — not a fallback chain, but two audiences:
 a dev-facing chat channel, and an inbox record for people who don't watch chat.
 
-- **Webhook** — a Slack-compatible `{"text": "..."}` JSON POST carrying the
-  Markdown report, with a 10-second timeout.
+Every report says what changed since the previous one (remembered in
+`Rails.cache`). Set `config.alert_on = :changes` to send only when findings
+appeared or were resolved; the default, `:always`, sends every run.
+
+- **Webhook** — for a `hooks.slack.com` URL, a Slack Block Kit summary (counts,
+  the top or newly added findings, what was resolved); for any other URL, a
+  `{"text": "..."}` JSON POST carrying the full Markdown report. Force either
+  with `config.webhook_format = :slack` or `:text`. 10-second timeout.
 - **Email** — sent by `SchemaReaper::Mailer`, which inherits your app's
   `ApplicationMailer` (its `default from:`, delivery settings and so on), or
   `ActionMailer::Base` if you don't have one. Delivered with `deliver_later`.
@@ -295,17 +309,23 @@ for watching the real, live database.
 |---|---|---|
 | `dead_column` | column no code path references | static scan (+ runtime) |
 | `dead_table` | table with no model or query reference | static scan + row count |
-| `unused_index` | non-unique index with `idx_scan = 0` (needs query history) | `pg_stat_user_indexes` |
+| `unused_index` | non-unique index with `idx_scan = 0` (needs query history; stats are per server, so check replicas too) | `pg_stat_user_indexes` |
 | `duplicate_index` | index that exactly duplicates another, or is a prefix of a wider one | schema shape |
 | `missing_fk_index` | `*_id` / foreign-key column with no index (polymorphic pairs need a `(type, id)` index) | schema shape |
 | `always_null_column` | `null_frac = 1.0` — no data at all | `pg_stats` |
 | `single_value_column` | one distinct value on a table of 500+ rows | `pg_stats` |
+| `sequence_exhaustion` | serial / IDENTITY sequence past 50% of its column type's range (high at 75%) | `pg_sequences` |
+| `duplicate_foreign_key` | two FK constraints on the same columns to the same table | `pg_constraint` |
 
 Columns and tables owned by common gems are whitelisted automatically when the
 gem is in your bundle: **devise**, **devise-api**, **paper_trail**,
 **audited**, **friendly_id**, **paranoia** / **acts_as_paranoid**,
-**activestorage**, **actiontext**, **pg_search**, **ahoy_matey** and
-**activeadmin**.
+**activestorage**, **actiontext**, **pg_search**, **ahoy_matey**,
+**activeadmin**, **solid_queue**, **solid_cache**, **solid_cable**,
+**good_job**, **delayed_job_active_record**, **flipper-active_record**,
+**acts-as-taggable-on**, **doorkeeper**, **noticed**,
+**activerecord-session_store**, **discard**, **acts_as_list** and
+**ancestry**. A table a gem owns outright is left alone by every analyzer.
 
 ## Runtime signal (optional, raises confidence)
 
@@ -322,7 +342,11 @@ SchemaReaper::Runtime::Tracker.install!(
 ```
 
 or, in Rails, boot with `SCHEMA_REAPER_TRACK=1` (and optionally
-`SCHEMA_REAPER_SAMPLE=0.05` for the sample rate). Let it run in staging or
+`SCHEMA_REAPER_SAMPLE=0.05` for the sample rate). The tracker also samples
+the tables named in executed SQL (pass `track_sql: false` to opt out), so a
+table read only through raw SQL isn't reported as dead. The log rotates to
+`runtime.jsonl.1` past `runtime_log_max_bytes` (50 MB), and both generations
+are read. Let it run in staging or
 production for a couple of weeks. A column unseen in **both** code and
 ≥ 14 observed days of runtime data (`min_age_days` in
 [`.schema_reaper.yml`](#configuration)) reaches **0.9** confidence (0.8 if it's
@@ -406,6 +430,7 @@ override any of these defaults.
 ```yaml
 database_url:          # falls back to DATABASE_URL, then config/database.yml
 database_yml: config/database.yml
+schemas: [public]      # PostgreSQL schemas to scan; non-public tables appear as schema.table
 scan_paths: [app, lib, config]
 view_globs: ["app/**/*.erb", "app/**/*.haml", "app/**/*.slim", "app/**/*.jbuilder"]
 ignore:
@@ -414,13 +439,41 @@ ignore:
 always_keep_columns: [id, created_at, updated_at, type]
 gem_awareness: true    # auto-whitelist columns owned by known gems
 min_age_days: 14       # days of runtime data before dead_column trusts it
+min_confidence: 0.0    # hide findings below this on every command
+runtime_log_max_bytes: 52428800  # rotate the runtime log past this size (null: never)
 runtime_log: .schema_reaper/runtime.jsonl
 history_log: .schema_reaper/history.jsonl
 baseline: .schema_reaper/baseline.json
 require: []            # extra files to load, e.g. custom analyzers
+scan_cache: .schema_reaper/scan_cache.json  # per-file scan cache (null: off)
+column_scope: global   # or model -- see "Stricter column matching"
 ```
 
 </details>
+
+### Keeping a finding from code
+
+A `schema_reaper:keep` comment anywhere in scanned Ruby or view files silences
+matching findings, with the reason kept next to the code it's about:
+
+```ruby
+class User < ApplicationRecord
+  # schema_reaper:keep legacy_api_token, users.import_ref -- read by the billing ETL
+end
+```
+
+A target is a column (on any table), `table.column`, a table (every finding on
+it), or an index name.
+
+### Stricter column matching
+
+By default a column counts as used if its name appears anywhere in scanned
+code, so `status` in `Order` also hides a dead `status` on `users`. With
+`column_scope: model`, a name seen only in an `app/models` file counts for that
+model's table and for the tables the model mentions (associations, class
+names); names in controllers, views, jobs and so on still count everywhere.
+It finds more dead columns, at some risk of flagging one used through
+metaprogramming -- review before acting.
 
 ### Custom analyzers
 
@@ -447,7 +500,7 @@ require:
 > ✅ Self-hosted scheduled scans + alerts shipped in **v2.0** — see
 > [Production automation](#production-automation).
 
-- Runtime verdict fusion for index and table findings
+- Runtime verdict fusion for index findings
 - Orphan-row and `schema.rb`↔DB drift analyzers
 - Disk/$ reclaim from real `pg_total_relation_size`
 - Mountable dashboard engine, trend charts
