@@ -22,7 +22,8 @@ module SchemaReaper
 
       def unused_in(table)
         table.indexes.filter_map do |ix|
-          next if ix.primary || ix.unique # keep constraint-backing indexes
+          next if ix.primary || ix.unique # enforce a guarantee even when never scanned
+          next if ix.constraint_backed? # EXCLUDE: DROP INDEX refuses it, and it enforces one too
           next if ix.scans.nil? # no stats available
           next unless ix.scans.zero?
 

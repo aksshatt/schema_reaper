@@ -355,5 +355,105 @@ RSpec.describe SchemaReaper::Introspect::Postgres do
         expect(col.bytes).to eq(1)
       end
     end
+
+    describe "objects inside the database that depend on a table" do
+      before(:all) do
+        @conn.exec(<<~SQL)
+          DROP TABLE IF EXISTS sr_deps, sr_deps_counted, sr_deps_audit, sr_deps_parted CASCADE;
+          DROP FUNCTION IF EXISTS sr_deps_touch() CASCADE;
+          CREATE EXTENSION IF NOT EXISTS btree_gist;
+          CREATE TABLE sr_deps (
+            id bigint PRIMARY KEY,
+            viewed int, materialized int, base int, watched int, checked int, untouched int, ruled int,
+            doubled int GENERATED ALWAYS AS (base * 2) STORED,
+            room int, period tsrange,
+            CONSTRAINT sr_deps_checked CHECK (checked > 0),
+            CONSTRAINT sr_deps_no_overlap EXCLUDE USING gist (room WITH =, period WITH &&)
+          );
+          CREATE VIEW sr_deps_view AS SELECT viewed FROM sr_deps;
+          CREATE MATERIALIZED VIEW sr_deps_mat AS SELECT materialized FROM sr_deps;
+          CREATE FUNCTION sr_deps_touch() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN NEW; END $$;
+          CREATE TRIGGER sr_deps_watch BEFORE UPDATE OF watched ON sr_deps
+            FOR EACH ROW EXECUTE FUNCTION sr_deps_touch();
+
+          -- A view that reads no column at all still depends on the table.
+          CREATE TABLE sr_deps_counted (id bigint);
+          CREATE VIEW sr_deps_count AS SELECT count(*) FROM sr_deps_counted;
+
+          -- A rule on sr_deps reads its own column `ruled` and writes into
+          -- another table: it blocks dropping `ruled`, but says nothing about
+          -- whether anything outside uses sr_deps -- while sr_deps_audit is
+          -- used, by a rule, not a view.
+          CREATE TABLE sr_deps_audit (x int);
+          CREATE RULE sr_deps_log AS ON UPDATE TO sr_deps DO ALSO INSERT INTO sr_deps_audit VALUES (OLD.ruled);
+
+          -- A view that reads a partition directly still blocks dropping the
+          -- partitioned parent's column, or the parent.
+          CREATE TABLE sr_deps_parted (id int, k int) PARTITION BY RANGE (id);
+          CREATE TABLE sr_deps_parted_1 PARTITION OF sr_deps_parted FOR VALUES FROM (0) TO (10);
+          CREATE VIEW sr_deps_reads_partition AS SELECT k FROM sr_deps_parted_1;
+        SQL
+      end
+
+      after(:all) do
+        @conn&.exec("DROP TABLE IF EXISTS sr_deps, sr_deps_counted, sr_deps_audit, sr_deps_parted CASCADE")
+        @conn&.exec("DROP FUNCTION IF EXISTS sr_deps_touch() CASCADE")
+      end
+
+      let(:db) { described_class.new(db_url).call }
+      let(:table) { db.table("sr_deps") }
+
+      it "names the view, materialized view, generated column and trigger that read a column" do
+        expect(table.column("viewed").dependents).to eq(["view sr_deps_view"])
+        expect(table.column("materialized").dependents).to eq(["materialized view sr_deps_mat"])
+        expect(table.column("base").dependents).to eq(["generated column doubled"])
+        expect(table.column("watched").dependents).to eq(["trigger sr_deps_watch"])
+      end
+
+      it "leaves out CHECK constraints, which are dropped along with their column" do
+        expect(table.column("checked").dependents).to be_empty
+        expect(table.column("untouched").dependents).to be_empty
+      end
+
+      it "lists the views that use the table, including one that reads no column" do
+        expect(table.dependents).to contain_exactly("view sr_deps_view", "materialized view sr_deps_mat")
+        expect(db.table("sr_deps_counted").dependents).to eq(["view sr_deps_count"])
+      end
+
+      it "counts a rule on the table itself against the column it reads, but not the table" do
+        expect(table.column("ruled").dependents).to eq(["rule sr_deps_log on sr_deps"])
+        expect(table.dependents).not_to include(a_string_starting_with("rule"))
+      end
+
+      it "names a rule on another table as a rule, not a view" do
+        audit = db.table("sr_deps_audit")
+        expect(audit.dependents).to eq(["rule sr_deps_log on sr_deps"])
+        expect(audit.column("x").dependents).to eq(["rule sr_deps_log on sr_deps"])
+      end
+
+      it "files a view that reads a partition directly under the partitioned parent" do
+        parted = db.table("sr_deps_parted")
+        expect(parted.column("k").dependents).to eq(["view sr_deps_reads_partition"])
+        expect(parted.dependents).to eq(["view sr_deps_reads_partition"])
+      end
+
+      it "records the constraint behind a constraint-backed index, and only those" do
+        indexes = table.indexes.to_h { |i| [i.name, i.constraint] }
+        expect(indexes).to eq("sr_deps_pkey" => "sr_deps_pkey", "sr_deps_no_overlap" => "sr_deps_no_overlap")
+      end
+
+      it "does not record a foreign key against the referenced table's index" do
+        # pg_constraint.conindid of a FOREIGN KEY is the *parent's* unique index.
+        @conn.exec(<<~SQL)
+          CREATE TABLE sr_deps_child (id bigint PRIMARY KEY, dep_id bigint REFERENCES sr_deps (id));
+          CREATE INDEX idx_sr_deps_child_dep ON sr_deps_child (dep_id);
+        SQL
+        child = described_class.new(db_url).call.table("sr_deps_child")
+        expect(child.indexes.to_h { |i| [i.name, i.constraint] })
+          .to eq("sr_deps_child_pkey" => "sr_deps_child_pkey", "idx_sr_deps_child_dep" => nil)
+      ensure
+        @conn.exec("DROP TABLE IF EXISTS sr_deps_child")
+      end
+    end
   end
 end

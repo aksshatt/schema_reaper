@@ -30,6 +30,7 @@ module SchemaReaper
 
       def dead(table)
         return if referenced?(table)
+        return if table.dependents.any? # a view or rule uses it: DROP TABLE would fail, or CASCADE
         return if runtime.table_accessed?(table.name)
 
         finding(

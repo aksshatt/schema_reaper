@@ -43,6 +43,7 @@ module SchemaReaper
           config.ignored_column?(col.name) ||
           table.primary_key?(col.name) ||
           table.foreign_keys.include?(col.name) ||
+          col.dependents.any? || # read by a view, rule, generated column or trigger
           col.name.end_with?("_id", "_type") ||
           gem_reserved?(table.name, col.name)
       end

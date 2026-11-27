@@ -17,6 +17,15 @@ RSpec.describe SchemaReaper::Analyzers::DeadTable do
     expect(findings("orders", used: %w[orders])).to be_empty
   end
 
+  it "keeps a table a view or rule uses, even with no code reference" do
+    # DROP TABLE would fail on the view, or take it with it under CASCADE.
+    schema = fake_schema(
+      fake_table("legacy_imports", row_count: 0, columns: [{ name: "id" }], dependents: ["view import_report"])
+    )
+
+    expect(described_class.new(context_for(schema: schema, used: [])).call).to be_empty
+  end
+
   context "when the row count is unknown (table never analysed)" do
     subject(:finding) { findings("legacy_imports", used: [], row_count: nil).first }
 

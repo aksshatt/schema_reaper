@@ -30,7 +30,7 @@ module SchemaReaper
             severity: :high,
             confidence: sampled_stats?(table) ? 0.7 : 0.85,
             bytes_per_row: col.bytes,
-            evidence: evidence_for(table),
+            evidence: evidence_for(table) + dependents_evidence(col),
             suggested_fix: "verify with `SELECT count(#{col.name}) FROM #{table.name}` " \
                            "then stage a removal"
           )

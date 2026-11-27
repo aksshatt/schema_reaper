@@ -110,6 +110,15 @@ module SchemaReaper
         config.ignored_column?(name)
       end
 
+      # Evidence for a column some view, rule, generated column or trigger reads:
+      # removing it fails until those are changed, or silently cascades.
+      def dependents_evidence(col)
+        return [] if col.dependents.empty?
+
+        ["read by #{col.dependents.join(", ")} -- change #{col.dependents.size == 1 ? "it" : "them"} " \
+         "before removing the column"]
+      end
+
       # The removal command for an index. DROP INDEX CONCURRENTLY is refused
       # on a partitioned index ("cannot drop partitioned index ...
       # concurrently"), and its per-partition indexes can't be dropped on

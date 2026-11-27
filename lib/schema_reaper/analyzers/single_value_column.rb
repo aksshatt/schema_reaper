@@ -51,7 +51,7 @@ module SchemaReaper
                 "column has the same value in every row"
               end
         ev << "estimated from a #{STATS_SAMPLE_ROWS}-row ANALYZE sample" if sampled_stats?(table)
-        ev
+        ev + dependents_evidence(col)
       end
     end
   end

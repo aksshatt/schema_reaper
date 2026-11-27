@@ -307,9 +307,9 @@ for watching the real, live database.
 
 | type | what it flags | main signal |
 |---|---|---|
-| `dead_column` | column no code path references | static scan (+ runtime) |
-| `dead_table` | table with no model or query reference | static scan + row count |
-| `unused_index` | non-unique index with `idx_scan = 0` (needs query history; stats are per server, so check replicas too) | `pg_stat_user_indexes` |
+| `dead_column` | column no code path references, and no view, rule, generated column or `UPDATE OF` trigger reads (on the table or any of its partitions) | static scan (+ runtime) + `pg_depend` |
+| `dead_table` | table with no model or query reference, and no view or rule using it | static scan + row count + `pg_depend` |
+| `unused_index` | non-unique index with `idx_scan = 0`, other than one backing an `EXCLUDE` constraint (needs query history; stats are per server, so check replicas too) | `pg_stat_user_indexes` |
 | `duplicate_index` | index that exactly duplicates another, or is a prefix of a wider one | schema shape |
 | `missing_fk_index` | `*_id` / foreign-key column with no index (polymorphic pairs need a `(type, id)` index) | schema shape |
 | `always_null_column` | `null_frac = 1.0` — no data at all | `pg_stats` |
