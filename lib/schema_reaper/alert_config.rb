@@ -30,11 +30,31 @@ module SchemaReaper
       end
     end
 
-    attr_accessor :emails, :webhook_url
+    # alert_on:       :always  -- send every scheduled report (the 2.0 behaviour)
+    #                 :changes -- send only when findings appeared or were
+    #                             resolved since the last report
+    # webhook_format: :auto    -- Slack Block Kit for hooks.slack.com, plain
+    #                             {"text": <markdown>} for anything else
+    #                 :slack / :text to force one
+    attr_accessor :emails, :webhook_url, :alert_on, :webhook_format
 
     def initialize
       @emails = []
       @webhook_url = nil
+      @alert_on = :always
+      @webhook_format = :auto
+    end
+
+    def changes_only?
+      alert_on.to_s == "changes"
+    end
+
+    def slack_blocks?
+      case webhook_format.to_s
+      when "slack" then true
+      when "text" then false
+      else webhook_url.to_s.include?("hooks.slack.com")
+      end
     end
 
     def emails?

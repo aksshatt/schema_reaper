@@ -24,13 +24,13 @@ module SchemaReaper
 
       def ignored?(table)
         config.ignore_tables.include?(table.name) ||
-          table.name.start_with?("active_storage_", "action_text_", "action_mailbox_") ||
+          table.name.split(".").last.start_with?("active_storage_", "action_text_", "action_mailbox_") ||
           gem_owned_table?(table.name)
       end
 
       def dead(table)
         return if referenced?(table)
-        return if runtime.accessed.any? { |k| k.start_with?("#{table.name}.") }
+        return if runtime.table_accessed?(table.name)
 
         finding(
           type: :dead_table,
@@ -40,17 +40,21 @@ module SchemaReaper
           confidence: confidence_for(table),
           bytes_per_row: table.columns.sum(&:bytes),
           evidence: evidence_for(table),
-          suggested_fix: "confirm no external consumer, then `drop_table :#{table.name}`"
+          suggested_fix: "confirm no external consumer, then `drop_table #{sym(table.name)}`"
         )
       end
 
       # Match the table name and its singular/camelized model form.
+      # A table outside public ("billing.invoices") is still referenced by its
+      # bare name in code -- `self.table_name = "billing.invoices"` tokenises
+      # to billing + invoices, and the model is Invoice.
       def referenced?(table)
-        singular = singularize(table.name)
-        forms = [table.name, singular, camelize(table.name), camelize(singular)]
+        bare = table.name.split(".").last
+        singular = singularize(bare)
+        forms = [bare, singular, camelize(bare), camelize(singular)]
         return true if forms.any? { |form| used?(form) }
 
-        embedded_in_identifier?(table.name)
+        embedded_in_identifier?(bare)
       end
 
       def singularize(name)

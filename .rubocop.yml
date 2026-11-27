@@ -31,6 +31,7 @@ Metrics/BlockLength:
     - "*.gemspec"
 
 Metrics/ParameterLists:
+  CountKeywordArgs: false # keyword args name themselves at every call site
   Exclude:
     - "spec/**/*"
 
@@ -45,6 +46,8 @@ Metrics/MethodLength:
 
 Metrics/ClassLength:
   Max: 135
+  Exclude:
+    - "lib/schema_reaper/introspect/postgres.rb" # mostly SQL heredocs, one per catalog query
 
 Metrics/CyclomaticComplexity:
   Max: 12

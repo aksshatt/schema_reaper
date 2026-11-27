@@ -43,7 +43,8 @@ RSpec.describe SchemaReaper::Runner do
 
       described_class.new(config: cfg, root: root).run
 
-      expect(SchemaReaper::Introspect::Postgres).to have_received(:new).with("postgres:///whatever")
+      expect(SchemaReaper::Introspect::Postgres).to have_received(:new).with("postgres:///whatever",
+                                                                             schemas: %w[public])
       expect(fake_introspector).to have_received(:call)
     end
 
@@ -101,5 +102,40 @@ RSpec.describe SchemaReaper::Runner do
     described_class.new(config: cfg, root: root, introspector: introspector, runtime: SchemaReaper::Runtime::Report.empty)
 
     expect(Object.const_get(:SCHEMA_REAPER_PLUGIN_LOADED)).to be true
+  end
+
+  describe "analyzer selection and min_confidence" do
+    let(:schema) do
+      fake_schema(fake_table("users", row_count: 1000, columns: [
+                               { name: "id" }, { name: "abandoned_flag", null_fraction: 1.0 }
+                             ]))
+    end
+    let(:cfg) { SchemaReaper::Config.new(SchemaReaper::Config::DEFAULTS.dup) }
+
+    def run_with(**opts)
+      described_class.new(config: cfg, root: root, introspector: -> { schema },
+                          runtime: SchemaReaper::Runtime::Report.empty, **opts).run
+    end
+
+    it "runs only the named analyzers" do
+      expect(run_with(only: %w[always_null_column]).map(&:type).uniq).to eq([:always_null_column])
+    end
+
+    it "skips excluded analyzers, accepting a comma-separated list" do
+      types = run_with(except: ["always_null_column,dead_column"]).map(&:type)
+      expect(types).not_to include(:always_null_column, :dead_column)
+    end
+
+    it "rejects an unknown analyzer name" do
+      expect { run_with(only: %w[nope]) }.to raise_error(SchemaReaper::Error, /unknown analyzer\(s\): nope/)
+    end
+
+    it "drops findings under min_confidence, taking the config key as the default" do
+      cfg = SchemaReaper::Config.new(SchemaReaper::Config::DEFAULTS.merge("min_confidence" => 0.8))
+      findings = described_class.new(config: cfg, root: root, introspector: -> { schema },
+                                     runtime: SchemaReaper::Runtime::Report.empty).run
+      expect(findings).not_to be_empty
+      expect(findings.map(&:confidence)).to all(be >= 0.8)
+    end
   end
 end

@@ -42,4 +42,37 @@ RSpec.describe SchemaReaper::MigrationGenerator do
       expect(File.read(path)).not_to include("Addresse model")
     end
   end
+
+  describe "index removal" do
+    it "writes one concurrent, transaction-free remove_index migration" do
+      Dir.mktmpdir do |dir|
+        paths = described_class.new(table: "users", index: "index_users_on_email", dir: dir).call
+        src = File.read(paths.first)
+
+        expect(paths.size).to eq(1)
+        expect(RubyVM::InstructionSequence.compile(src)).to be_a(RubyVM::InstructionSequence)
+        expect(src).to include("disable_ddl_transaction!")
+        expect(src).to include("remove_index :users, name: :index_users_on_email, algorithm: :concurrently")
+      end
+    end
+  end
+
+  describe "table removal" do
+    it "writes one irreversible drop_table migration, quoting a schema-qualified name" do
+      Dir.mktmpdir do |dir|
+        path = described_class.new(table: "billing.invoices", dir: dir).call.first
+        src = File.read(path)
+
+        expect(File.basename(path)).to end_with("_drop_billing_invoices.rb")
+        expect(RubyVM::InstructionSequence.compile(src)).to be_a(RubyVM::InstructionSequence)
+        expect(src).to include('drop_table :"billing.invoices"')
+        expect(src).to include("class DropBillingInvoicesTable")
+        expect(src).to include("ActiveRecord::IrreversibleMigration")
+      end
+    end
+  end
+
+  it "refuses both a column and an index" do
+    expect { described_class.new(table: "users", column: "a", index: "b") }.to raise_error(ArgumentError)
+  end
 end

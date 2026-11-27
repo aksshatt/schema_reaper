@@ -40,7 +40,7 @@ module SchemaReaper
           confidence: 0.8,
           bytes_per_row: 0,
           evidence: [evidence_for(index, covering)],
-          suggested_fix: "remove_index :#{table.name}, name: :#{index.name}"
+          suggested_fix: remove_index_fix(table, index)
         )
       end
 

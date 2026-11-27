@@ -2,6 +2,13 @@
 ---
 # database_url: postgres://localhost/myapp_development   # else ENV["DATABASE_URL"]
 
+# PostgreSQL schemas to scan. Tables outside public are reported as schema.table.
+schemas:
+  - public
+
+# Hide findings below this confidence on every command (the CLI flag overrides).
+min_confidence: 0.0
+
 scan_paths:
   - app
   - lib
@@ -33,11 +40,21 @@ gem_awareness: true
 
 # Runtime usage log written by the tracker (see README > Runtime signal).
 runtime_log: .schema_reaper/runtime.jsonl
+# Rotate it to runtime.jsonl.1 past this many bytes; both are read. null: never.
+runtime_log_max_bytes: 52428800
 
 # Append-only snapshot log for `schema_reaper trend`.
 history_log: .schema_reaper/history.jsonl
 
 baseline: .schema_reaper/baseline.json
+
+# Per-file cache of scan results; repeat scans re-parse only changed files.
+scan_cache: .schema_reaper/scan_cache.json
+
+# global: a column name anywhere in code counts as use on every table.
+# model:  a name only in an app/models file counts for that model's table and
+#         the tables it mentions. Stricter; review its findings before acting.
+column_scope: global
 
 # Extra Ruby files to load before analysis -- register custom analyzers here.
 require: []

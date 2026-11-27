@@ -9,6 +9,9 @@ end
 # Loaded before schema_reaper so its ActiveJob-/ActionMailer-gated files
 # (ScanJob, Mailer -- see lib/schema_reaper.rb) actually get required. Both
 # guards are checked once, at this require, not per-spec.
+# ActiveSupport < 7.1 references ::Logger without requiring it, which breaks
+# under concurrent-ruby >= 1.3.5 (it stopped loading logger itself).
+require "logger"
 require "active_job"
 require "action_mailer"
 ActiveJob::Base.queue_adapter = :test
@@ -23,6 +26,15 @@ RSpec.configure do |config|
   config.example_status_persistence_file_path = ".rspec_status"
   config.disable_monkey_patching!
   config.expect_with(:rspec) { |c| c.syntax = :expect }
+
+  # The scan cache is on by default and would litter spec/fixtures (and the
+  # repo root) with .schema_reaper/scan_cache.json. Specs that exercise it
+  # opt back in with `scan_cache: true` metadata.
+  config.before do |example|
+    next if example.metadata[:scan_cache]
+
+    allow_any_instance_of(SchemaReaper::Config).to receive(:scan_cache).and_return(nil)
+  end
 end
 
 # Builds a DatabaseSchema without touching a real database. index_scan_total

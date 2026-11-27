@@ -41,13 +41,25 @@ RSpec.describe SchemaReaper::Notifier do
 
     before { config.webhook_url = "https://hooks.slack.com/services/T000/B000/XXXX" }
 
-    it "POSTs a Slack-compatible {text:} body to the configured URL" do
+    it "POSTs Slack Block Kit to a hooks.slack.com URL, with a plain-text fallback" do
       described_class.new([finding], config: config, http: http).deliver
 
       expect(http).to have_received(:new).with("hooks.slack.com", 443)
       expect(http_client).to have_received(:request) do |req|
         expect(req["Content-Type"]).to eq("application/json")
         body = JSON.parse(req.body)
+        expect(body["text"]).to eq("schema_reaper: 1 finding")
+        expect(body["blocks"].to_json).to include("dead_column/users/legacy")
+      end
+    end
+
+    it "POSTs the full markdown report as {text:} to any other receiver" do
+      config.webhook_url = "https://chat.example.com/hooks/abc"
+      described_class.new([finding], config: config, http: http).deliver
+
+      expect(http_client).to have_received(:request) do |req|
+        body = JSON.parse(req.body)
+        expect(body.keys).to eq(["text"])
         expect(body["text"]).to include("dead_column", "users", "legacy")
       end
     end
@@ -123,5 +135,51 @@ RSpec.describe SchemaReaper::Notifier do
 
     expect(http_client).to have_received(:request)
     expect(mailer).to have_received(:report_email)
+  end
+
+  describe "change tracking" do
+    let(:http_client) { instance_double(Net::HTTP, "use_ssl=": nil, "open_timeout=": nil, "read_timeout=": nil, request: nil) }
+    let(:http) { class_double(Net::HTTP, new: http_client) }
+    let(:store) do
+      data = {}
+      double("cache").tap do |cache|
+        allow(cache).to receive(:read) { |key| data[key] }
+        allow(cache).to receive(:write) { |key, value| data[key] = value }
+      end
+    end
+    let(:state) { SchemaReaper::AlertState.new(cache: store) }
+
+    before do
+      config.webhook_url = "https://hooks.slack.com/services/T000/B000/XXXX"
+      config.alert_on = :changes
+    end
+
+    def deliver(findings)
+      described_class.new(findings, config: config, http: http, state: state).deliver
+    end
+
+    it "always sends the first report, then stays quiet while nothing changes" do
+      deliver([finding])
+      deliver([finding])
+      expect(http_client).to have_received(:request).once
+    end
+
+    it "sends again when a finding appears or is resolved, saying which" do
+      bodies = []
+      allow(http_client).to receive(:request) { |req| bodies << JSON.parse(req.body) }
+      deliver([finding])
+      other = finding.dup.tap { |f| f.column = "other" }
+      deliver([other])
+
+      expect(bodies.size).to eq(2)
+      expect(bodies.last["text"]).to include("1 new, 1 resolved")
+      expect(bodies.last["blocks"].to_json).to include("~dead_column/users/legacy~", "dead_column/users/other")
+    end
+
+    it "keeps sending every report under the default alert_on: :always" do
+      config.alert_on = :always
+      2.times { deliver([finding]) }
+      expect(http_client).to have_received(:request).twice
+    end
   end
 end
